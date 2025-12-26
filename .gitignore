@@ -1,0 +1,24 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Env
+.env
+
+# Junie
+.junie/memory/
+.junie/.local_agents_memory/
+.junie/.onboarding_migrated
+
+# IDE
+.idea/
+.vscode/.venv/
+*.pyc
+.pytest_cache/
