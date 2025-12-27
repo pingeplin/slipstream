@@ -2,8 +2,10 @@
 Integration tests for Google Cloud Vision API OCR functionality.
 
 These tests make real API calls to Google Cloud Vision and require:
-1. Google Cloud credentials to be configured
-2. Active Google Cloud project with Vision API enabled
+1. Google Cloud credentials configured via Application Default Credentials (ADC)
+   - Run: gcloud auth application-default login
+   - Or set GOOGLE_APPLICATION_CREDENTIALS to a service account key
+2. Active Google Cloud project with Vision API enabled and billing enabled
 3. Test images in tests/dataset/
 
 Run these tests with: uv run pytest tests/integration/test_vision_api.py -m integration
@@ -11,30 +13,55 @@ Run these tests with: uv run pytest tests/integration/test_vision_api.py -m inte
 Note: These tests are marked as 'integration' and can be skipped in CI/CD pipelines.
 """
 
-import os
+import functools
 from pathlib import Path
 
 import pytest
+from google.api_core.exceptions import PermissionDenied
 
 from slipstream.integrations.ocr import OCREngine
 
-# Skip all tests in this module if GOOGLE_APPLICATION_CREDENTIALS is not set
+
+def skip_on_billing_error(func):
+    """Decorator to skip tests if billing is not enabled on the GCP project."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except PermissionDenied as e:
+            if "billing" in str(e).lower():
+                pytest.skip(
+                    "Google Cloud Vision API requires billing to be enabled. "
+                    "Enable billing on your project or skip integration tests."
+                )
+            raise
+
+    return wrapper
+
+
+# Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def skip_if_no_credentials():
-    """Skip test if Google Cloud credentials are not configured."""
-    if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-        pytest.skip(
-            "GOOGLE_APPLICATION_CREDENTIALS not set - skipping integration test"
-        )
-
-
-@pytest.fixture
+@pytest.fixture(scope="module")
 def ocr_engine():
-    """Create an OCREngine instance with real Google Vision client."""
-    return OCREngine()
+    """
+    Create an OCREngine instance with real Google Vision client using ADC.
+
+    Skips all tests if credentials are not available.
+    """
+    try:
+        engine = OCREngine()
+        # Test that we can actually create a client (this validates credentials)
+        _ = engine.client
+        return engine
+    except Exception as e:
+        pytest.skip(
+            f"Google Cloud credentials not configured. "
+            f"Run 'gcloud auth application-default login' or set GOOGLE_APPLICATION_CREDENTIALS. "
+            f"Error: {e}"
+        )
 
 
 @pytest.fixture
@@ -46,9 +73,8 @@ def dataset_dir():
 class TestRealOCRExtraction:
     """Integration tests using real Google Vision API calls."""
 
-    def test_extract_text_from_english_receipt(
-        self, skip_if_no_credentials, ocr_engine, dataset_dir
-    ):
+    @skip_on_billing_error
+    def test_extract_text_from_english_receipt(self, ocr_engine, dataset_dir):
         """Test OCR extraction from a real English receipt image."""
         receipt_path = dataset_dir / "receipt_en.png"
         if not receipt_path.exists():
@@ -62,9 +88,8 @@ class TestRealOCRExtraction:
         # Basic sanity check - receipts typically contain numbers
         assert any(char.isdigit() for char in result)
 
-    def test_extract_text_from_chinese_receipt(
-        self, skip_if_no_credentials, ocr_engine, dataset_dir
-    ):
+    @skip_on_billing_error
+    def test_extract_text_from_chinese_receipt(self, ocr_engine, dataset_dir):
         """Test OCR extraction from a Chinese/Traditional Chinese receipt."""
         receipt_path = dataset_dir / "receipt_zh_tw.png"
         if not receipt_path.exists():
@@ -75,9 +100,8 @@ class TestRealOCRExtraction:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_extract_text_from_japanese_receipt(
-        self, skip_if_no_credentials, ocr_engine, dataset_dir
-    ):
+    @skip_on_billing_error
+    def test_extract_text_from_japanese_receipt(self, ocr_engine, dataset_dir):
         """Test OCR extraction from a Japanese receipt."""
         receipt_path = dataset_dir / "receipt_jp.png"
         if not receipt_path.exists():
@@ -88,9 +112,8 @@ class TestRealOCRExtraction:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_extract_text_from_korean_receipt(
-        self, skip_if_no_credentials, ocr_engine, dataset_dir
-    ):
+    @skip_on_billing_error
+    def test_extract_text_from_korean_receipt(self, ocr_engine, dataset_dir):
         """Test OCR extraction from a Korean receipt."""
         receipt_path = dataset_dir / "receipt_kr.png"
         if not receipt_path.exists():
@@ -105,9 +128,8 @@ class TestRealOCRExtraction:
 class TestPerformanceMetrics:
     """Integration tests for performance requirements."""
 
-    def test_ocr_processing_speed(
-        self, skip_if_no_credentials, ocr_engine, dataset_dir
-    ):
+    @skip_on_billing_error
+    def test_ocr_processing_speed(self, ocr_engine, dataset_dir):
         """Test that OCR processing meets speed requirements (< 5 seconds)."""
         import time
 

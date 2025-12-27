@@ -9,18 +9,11 @@ These tests require:
 """
 
 import os
-from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
 from typer.testing import CliRunner
 
 from slipstream.main import app
-
-# Load .env file if it exists
-env_path = Path(__file__).parent.parent / ".env"
-if env_path.exists():
-    load_dotenv(env_path)
 
 # Test data from environment variables (no defaults - must be set by developer)
 TEST_FOLDER_URL = os.getenv("TEST_GDRIVE_FOLDER_URL")
