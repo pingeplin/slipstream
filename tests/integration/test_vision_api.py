@@ -13,32 +13,12 @@ Run these tests with: uv run pytest tests/integration/test_vision_api.py -m inte
 Note: These tests are marked as 'integration' and can be skipped in CI/CD pipelines.
 """
 
-import functools
 from pathlib import Path
 
 import pytest
-from google.api_core.exceptions import PermissionDenied
 
 from slipstream.integrations.ocr import OCREngine
-
-
-def skip_on_billing_error(func):
-    """Decorator to skip tests if billing is not enabled on the GCP project."""
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except PermissionDenied as e:
-            if "billing" in str(e).lower():
-                pytest.skip(
-                    "Google Cloud Vision API requires billing to be enabled. "
-                    "Enable billing on your project or skip integration tests."
-                )
-            raise
-
-    return wrapper
-
+from tests.integration.utils import skip_on_billing_error
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration

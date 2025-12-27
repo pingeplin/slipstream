@@ -281,8 +281,8 @@ slipstream config --google-creds <PATH> --anthropic-key <KEY>
 
 ### Hour 3-4：OCR 與 LLM 模組開發
 
-- [ ] 整合 Google Vision API
-- [ ] 撰寫 OCR 功能測試
+- [x] 整合 Google Vision API
+- [x] 撰寫 OCR 功能測試
 - [ ] 設計 LLM prompt template
 - [ ] 整合 Anthropic API
 - [ ] 實作資料驗證和清理
