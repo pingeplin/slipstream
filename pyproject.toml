@@ -58,3 +58,6 @@ markers = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[project.scripts]
+slipstream = "slipstream.main:main"

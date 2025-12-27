@@ -26,11 +26,7 @@ def test_process_command_exists():
 def test_process_folder_required():
     """Verify that --folder is a required argument for the process command."""
     # In Typer, if an option is required and not provided, it should fail
-    result = runner.invoke(app, ["--folder", "test"])
-    # Wait, if I call app directly, "process" is the only command but it might still need it
-    # Typer apps with one command usually don't need the command name if it's the default
-    # but here it is explicitly named "process"
-    result = runner.invoke(app, ["process"])
+    result = runner.invoke(app, ["process", "--folder"])
     assert result.exit_code != 0
     assert (
         "Missing option" in result.stdout
@@ -44,7 +40,7 @@ def test_folder_id_parsing(mock_gdrive_client):
     """Verify that both raw IDs and URLs are correctly parsed by the CLI."""
     # Use a URL
     url = "https://drive.google.com/drive/folders/XYZ123"
-    result = runner.invoke(app, ["--folder", url])
+    result = runner.invoke(app, ["process", "--folder", url])
     assert result.exit_code == 0
     assert "Processing folder: XYZ123" in result.stdout
 
@@ -52,14 +48,14 @@ def test_folder_id_parsing(mock_gdrive_client):
 def test_folder_id_parsing_alias(mock_gdrive_client):
     """Verify that the -f alias for --folder works."""
     url = "https://drive.google.com/drive/folders/XYZ123"
-    result = runner.invoke(app, ["-f", url])
+    result = runner.invoke(app, ["process", "-f", url])
     assert result.exit_code == 0
     assert "Processing folder: XYZ123" in result.stdout
 
 
 def test_invalid_folder_url():
     """Verify the CLI reports a clear error when an invalid URL is provided."""
-    result = runner.invoke(app, ["--folder", "https://wrong.com/abc"])
+    result = runner.invoke(app, ["process", "--folder", "https://wrong.com/abc"])
     assert result.exit_code != 0
     assert (
         "Unsupported URL domain" in result.stdout
@@ -76,7 +72,7 @@ def test_process_flow_success(mock_gdrive_client):
     ]
 
     url = "https://drive.google.com/drive/folders/XYZ123"
-    result = runner.invoke(app, ["--folder", url])
+    result = runner.invoke(app, ["process", "--folder", url])
 
     assert result.exit_code == 0
     assert "Downloaded r1.jpg" in result.stdout
@@ -90,7 +86,7 @@ def test_process_empty_folder(mock_gdrive_client):
     mock_instance = mock_gdrive_client.return_value
     mock_instance.list_files.return_value = []
 
-    result = runner.invoke(app, ["--folder", "empty_folder"])
+    result = runner.invoke(app, ["process", "--folder", "empty_folder"])
 
     assert result.exit_code == 0
     assert "No supported files found in folder." in result.stdout
@@ -102,7 +98,7 @@ def test_gdrive_api_error(mock_gdrive_client):
     # Use a generic Exception for now, as HttpError needs more setup
     mock_instance.list_files.side_effect = Exception("API Error")
 
-    result = runner.invoke(app, ["--folder", "error_folder"])
+    result = runner.invoke(app, ["process", "--folder", "error_folder"])
 
     assert result.exit_code != 0
     assert "Error communicating with Google Drive" in result.stderr
@@ -119,7 +115,7 @@ def test_process_partial_download_failure(mock_gdrive_client):
     # First call succeeds, second fails
     mock_instance.download_file.side_effect = [None, Exception("Download Failed")]
 
-    result = runner.invoke(app, ["--folder", "some_folder"])
+    result = runner.invoke(app, ["process", "--folder", "some_folder"])
 
     assert result.exit_code == 0
     assert "Downloaded r1.jpg" in result.stdout

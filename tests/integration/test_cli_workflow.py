@@ -70,7 +70,7 @@ def test_cli_workflow_with_folder_url_complete_pipeline():
 
     This is the primary happy path test for the Slipstream CLI.
     """
-    result = runner.invoke(app, ["--folder", TEST_FOLDER_URL])
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_URL])
 
     # Verify basic success criteria
     verify_cli_success(result, TEST_FOLDER_ID, EXPECTED_FILE_COUNT)
@@ -97,7 +97,7 @@ def test_cli_workflow_with_folder_id_complete_pipeline():
     Validates that both URL and raw folder ID inputs work identically.
     This ensures the URL parser correctly handles both input formats.
     """
-    result = runner.invoke(app, ["--folder", TEST_FOLDER_ID])
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_ID])
 
     # Verify basic success criteria
     verify_cli_success(result, TEST_FOLDER_ID, EXPECTED_FILE_COUNT)
@@ -120,7 +120,7 @@ def test_cli_workflow_ocr_text_extraction_quality():
     by validating that extracted text contains expected patterns
     (digits for receipts, non-zero character counts).
     """
-    result = runner.invoke(app, ["--folder", TEST_FOLDER_ID])
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_ID])
 
     assert result.exit_code == 0, f"CLI failed: {result.stderr}"
 
@@ -155,7 +155,7 @@ def test_cli_workflow_invalid_url_format():
     ]
 
     for invalid_url in url_parsing_errors:
-        result = runner.invoke(app, ["--folder", invalid_url])
+        result = runner.invoke(app, ["process", "--folder", invalid_url])
 
         # Should exit with code 1
         assert result.exit_code == 1, f"Expected exit code 1 for '{invalid_url}'"
@@ -176,7 +176,7 @@ def test_cli_workflow_invalid_folder_id():
     fails gracefully with an appropriate error message.
     """
     invalid_folder_id = "invalid_folder_id_12345_nonexistent"
-    result = runner.invoke(app, ["--folder", invalid_folder_id])
+    result = runner.invoke(app, ["process", "--folder", invalid_folder_id])
 
     # Should exit with code 1
     verify_cli_error(result, 1, "Error communicating with Google Drive")
@@ -191,7 +191,7 @@ def test_cli_workflow_empty_folder():
     unsupported file types) completes successfully without errors,
     and reports that no files were found.
     """
-    result = runner.invoke(app, ["--folder", EMPTY_FOLDER_ID])
+    result = runner.invoke(app, ["process", "--folder", EMPTY_FOLDER_ID])
 
     # Should exit with code 0 (not an error condition)
     assert result.exit_code == 0, (
@@ -220,7 +220,7 @@ def test_cli_workflow_reports_processing_steps():
     - Files being downloaded
     - OCR extraction in progress
     """
-    result = runner.invoke(app, ["--folder", TEST_FOLDER_ID])
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_ID])
 
     assert result.exit_code == 0, f"CLI failed: {result.stderr}"
 
@@ -250,7 +250,7 @@ def test_cli_workflow_url_with_user_parameter():
     # Construct URL with user parameter
     url_with_user = f"https://drive.google.com/drive/u/0/folders/{TEST_FOLDER_ID}"
 
-    result = runner.invoke(app, ["--folder", url_with_user])
+    result = runner.invoke(app, ["process", "--folder", url_with_user])
 
     # Should extract the folder ID correctly and process normally
     # We don't need full success (no billing), just verify ID extraction
@@ -268,7 +268,7 @@ def test_cli_workflow_url_with_user_parameter():
 @skip_if_missing_env_vars(CORE_ENV_VARS)
 def test_cli_workflow_short_flag():
     """Test that the short flag '-f' works identically to '--folder'."""
-    result = runner.invoke(app, ["-f", TEST_FOLDER_ID])
+    result = runner.invoke(app, ["process", "-f", TEST_FOLDER_ID])
 
     # Should work the same as --folder
     assert f"Processing folder: {TEST_FOLDER_ID}" in result.stdout
