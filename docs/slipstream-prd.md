@@ -275,9 +275,9 @@ slipstream config --google-creds <PATH> --anthropic-key <KEY>
 - [x] 建立 Python 專案結構
 - [x] 設定 Google Drive API credentials（透過 gcloud auth application-default login 設定開發權限）
 - [x] **實作 URL 解析器（支援 Drive/Sheets URL）**
-- [ ] 實作 Drive 資料夾讀取功能
-- [ ] 實作檔案下載功能
-- [ ] 建立測試收據樣本（上傳到 Drive）
+- [x] 實作 Drive 資料夾讀取功能
+- [x] 實作檔案下載功能
+- [x] 建立測試收據樣本（上傳到 Drive）
 
 ### Hour 3-4：OCR 與 LLM 模組開發
 
