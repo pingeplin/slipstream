@@ -6,10 +6,13 @@ license = "MIT"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=0.75.0",
     "google-api-python-client>=2.187.0",
     "google-auth-httplib2>=0.3.0",
     "google-auth-oauthlib>=1.2.3",
     "google-cloud-vision>=3.11.0",
+    "jinja2>=3.1.6",
+    "tenacity>=9.0.0",
     "typer>=0.21.0",
 ]
 
@@ -17,6 +20,8 @@ dependencies = [
 dev = [
     "pre-commit>=4.0.1",
     "pytest>=9.0.2",
+    "pytest-asyncio>=0.25.2",
+    "pytest-mock>=3.15.0",
     "ruff>=0.9.1",
     "pytest-cov>=7.0.0",
     "python-dotenv>=1.0.0",

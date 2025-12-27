@@ -283,9 +283,9 @@ slipstream config --google-creds <PATH> --anthropic-key <KEY>
 
 - [x] 整合 Google Vision API
 - [x] 撰寫 OCR 功能測試
-- [ ] 設計 LLM prompt template
-- [ ] 整合 Anthropic API
-- [ ] 實作資料驗證和清理
+- [x] 設計 LLM prompt template
+- [x] 整合 Anthropic API
+- [x] 實作資料驗證和清理
 
 ### Hour 5-6：Google Sheets 整合與 CLI 介面
 
