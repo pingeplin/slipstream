@@ -75,7 +75,8 @@ Apply Object-Oriented SOLID principles:
 3. **Implement minimal code** to pass the test (TDD Green phase)
 4. **Refactor** applying SOLID principles
 5. **Ensure all tests pass** using `uv run pytest`
-6. **Commit with clear messages**
+6. **Run ruff checks and formatting** using `uv run ruff check .` and `uv run ruff format .`
+7. **Commit with clear messages**
 
 ## Testing with pytest
 

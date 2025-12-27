@@ -313,6 +313,8 @@ def test_cli_workflow_complete_pipeline_with_llm(mocker):
         receipt=mock_receipt,
         input_tokens=100,
         output_tokens=50,
+        cache_creation_input_tokens=2000,
+        cache_read_input_tokens=0,
         processing_time=0.5,
     )
 
@@ -375,6 +377,8 @@ def test_cli_workflow_llm_failure_handling(mocker):
         receipt=mock_receipt,
         input_tokens=100,
         output_tokens=50,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=2000,
         processing_time=0.5,
     )
 
@@ -443,6 +447,8 @@ def test_cli_workflow_llm_incomplete_response(mocker):
         receipt=mock_receipt,
         input_tokens=100,
         output_tokens=50,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=2000,
         processing_time=0.5,
     )
 

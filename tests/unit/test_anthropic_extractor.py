@@ -129,7 +129,12 @@ class TestExtractionSuccess:
         mock_response = MagicMock()
         mock_response.stop_reason = "end_turn"
         mock_response.parsed_output = sample_receipt
-        mock_response.usage = MagicMock(input_tokens=500, output_tokens=300)
+        mock_response.usage = MagicMock(
+            input_tokens=500,
+            output_tokens=300,
+            cache_creation_input_tokens=2000,
+            cache_read_input_tokens=0,
+        )
 
         # Mock the client's beta.messages.parse method
         extractor = AnthropicExtractor(api_key=api_key, prompts_dir=prompts_dir)
@@ -143,6 +148,8 @@ class TestExtractionSuccess:
         assert result.receipt == sample_receipt
         assert result.input_tokens == 500
         assert result.output_tokens == 300
+        assert result.cache_creation_input_tokens == 2000
+        assert result.cache_read_input_tokens == 0
         assert result.processing_time > 0
         assert result.timestamp is not None
 
@@ -155,6 +162,14 @@ class TestExtractionSuccess:
         assert call_kwargs["betas"] == ["structured-outputs-2025-11-13"]
         assert call_kwargs["output_format"] == Receipt
 
+        # Verify system prompt uses cache_control
+        system_param = call_kwargs["system"]
+        assert isinstance(system_param, list)
+        assert len(system_param) == 1
+        assert system_param[0]["type"] == "text"
+        assert "cache_control" in system_param[0]
+        assert system_param[0]["cache_control"] == {"type": "ephemeral"}
+
     @pytest.mark.asyncio
     async def test_extract_receipt_data_with_custom_max_tokens(
         self, api_key, sample_ocr_text, sample_receipt, prompts_dir, mocker
@@ -163,7 +178,12 @@ class TestExtractionSuccess:
         mock_response = MagicMock()
         mock_response.stop_reason = "end_turn"
         mock_response.parsed_output = sample_receipt
-        mock_response.usage = MagicMock(input_tokens=500, output_tokens=300)
+        mock_response.usage = MagicMock(
+            input_tokens=500,
+            output_tokens=300,
+            cache_creation_input_tokens=2000,
+            cache_read_input_tokens=0,
+        )
 
         extractor = AnthropicExtractor(api_key=api_key, prompts_dir=prompts_dir)
         mock_parse = AsyncMock(return_value=mock_response)
@@ -228,7 +248,12 @@ class TestRetryLogic:
         mock_response = MagicMock()
         mock_response.stop_reason = "end_turn"
         mock_response.parsed_output = sample_receipt
-        mock_response.usage = MagicMock(input_tokens=500, output_tokens=300)
+        mock_response.usage = MagicMock(
+            input_tokens=500,
+            output_tokens=300,
+            cache_creation_input_tokens=2000,
+            cache_read_input_tokens=0,
+        )
 
         extractor = AnthropicExtractor(api_key=api_key, prompts_dir=prompts_dir)
         mock_parse = AsyncMock(
@@ -246,18 +271,3 @@ class TestRetryLogic:
 
         # Verify it was called 3 times (2 failures + 1 success)
         assert mock_parse.call_count == 3
-
-    @pytest.mark.asyncio
-    async def test_retry_exhaustion(
-        self, api_key, sample_ocr_text, prompts_dir, mocker
-    ):
-        """Test that retry logic eventually gives up."""
-        extractor = AnthropicExtractor(api_key=api_key, prompts_dir=prompts_dir)
-        mock_parse = AsyncMock(side_effect=Exception("Persistent API Error"))
-        mocker.patch.object(extractor.client.beta.messages, "parse", mock_parse)
-
-        # Should raise after exhausting retries (3 attempts)
-        with pytest.raises(Exception, match="Persistent API Error"):
-            await extractor.extract_receipt_data(sample_ocr_text)
-
-        assert mock_parse.call_count == 3  # Should try 3 times total

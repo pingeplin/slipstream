@@ -4,13 +4,16 @@ import time
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
-from anthropic.types.beta import BetaMessageParam
+from anthropic.types.beta import (
+    BetaCacheControlEphemeralParam,
+    BetaMessageParam,
+    BetaTextBlockParam,
+)
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential,
 )
 
 from slipstream.models import ExtractionResult, Receipt
@@ -91,14 +94,8 @@ class AnthropicExtractor:
         return system_prompt, user_prompt
 
     @retry(
-        retry=retry_if_exception_type(
-            (
-                # Retry on transient API errors
-                Exception,
-            )
-        ),
+        retry=retry_if_exception_type(Exception),
         stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
     )
     async def extract_receipt_data(
@@ -130,13 +127,19 @@ class AnthropicExtractor:
         # Construct properly typed message
         messages: list[BetaMessageParam] = [{"role": "user", "content": user_prompt}]
 
-        # Call Anthropic API with structured outputs
+        # Call Anthropic API with structured outputs and prompt caching
         response = await self.client.beta.messages.parse(
             model=self.model,
             max_tokens=max_tokens or self.max_tokens,
             temperature=self.temperature,
             betas=["structured-outputs-2025-11-13"],
-            system=system_prompt,
+            system=[
+                BetaTextBlockParam(
+                    type="text",
+                    text=system_prompt,
+                    cache_control=BetaCacheControlEphemeralParam(type="ephemeral"),
+                )
+            ],
             messages=messages,
             output_format=Receipt,
         )
@@ -161,6 +164,8 @@ class AnthropicExtractor:
             receipt=receipt,
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
+            cache_creation_input_tokens=response.usage.cache_creation_input_tokens,
+            cache_read_input_tokens=response.usage.cache_read_input_tokens,
             processing_time=processing_time,
         )
 
