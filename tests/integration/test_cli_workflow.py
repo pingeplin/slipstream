@@ -272,3 +272,208 @@ def test_cli_workflow_short_flag():
 
     # Should work the same as --folder
     assert f"Processing folder: {TEST_FOLDER_ID}" in result.stdout
+
+
+# Anthropic LLM Integration Tests
+
+
+@pytest.mark.integration
+@skip_if_missing_env_vars(CORE_ENV_VARS)
+@skip_on_billing_error
+def test_cli_workflow_complete_pipeline_with_llm(mocker):
+    """Test complete workflow including Anthropic LLM extraction.
+
+    This test validates the full end-to-end flow including LLM:
+    1. CLI accepts Google Drive folder URL
+    2. URL parser extracts folder ID
+    3. Google Drive client lists files
+    4. Files are downloaded to temp directory
+    5. OCR processes each downloaded file
+    6. Anthropic LLM extracts structured data from OCR text
+    7. Extracted structured data is reported
+
+    This test uses mocking for the LLM to avoid API costs and ensure consistency.
+    """
+    # Mock the AnthropicExtractor
+    from slipstream.models import ExtractionResult, Receipt
+
+    mock_receipt = Receipt(
+        merchant_name="Test Store",
+        date="2024-01-15",
+        total_amount=42.50,
+        currency="USD",
+        items=[],
+        payment_method=None,
+        tax=None,
+        confidence_score=0.95,
+        raw_text="Sample OCR text",
+    )
+
+    mock_result = ExtractionResult(
+        receipt=mock_receipt,
+        input_tokens=100,
+        output_tokens=50,
+        processing_time=0.5,
+    )
+
+    # Mock the extract_receipt_data method to return our test data
+    mock_extractor = mocker.patch("slipstream.main.AnthropicExtractor", autospec=True)
+    mock_instance = mock_extractor.return_value
+    mock_instance.extract_receipt_data = mocker.AsyncMock(return_value=mock_result)
+
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_URL])
+
+    # Verify basic success criteria
+    verify_cli_success(result, TEST_FOLDER_ID, EXPECTED_FILE_COUNT)
+
+    # Verify OCR extraction occurred
+    ocr_extract_count = result.stdout.count("Extracted text from")
+    assert ocr_extract_count == EXPECTED_FILE_COUNT, (
+        f"Expected OCR extraction for {EXPECTED_FILE_COUNT} files, "
+        f"found {ocr_extract_count}\nOutput: {result.stdout}"
+    )
+
+    # Verify LLM extraction occurred
+    llm_extract_count = result.stdout.count("Structured data extracted")
+    assert llm_extract_count == EXPECTED_FILE_COUNT, (
+        f"Expected LLM extraction for {EXPECTED_FILE_COUNT} files, "
+        f"found {llm_extract_count}\nOutput: {result.stdout}"
+    )
+
+    # Verify merchant name appears in output
+    assert "Test Store" in result.stdout, (
+        f"Expected merchant name 'Test Store' in output\nOutput: {result.stdout}"
+    )
+
+
+@pytest.mark.integration
+@skip_if_missing_env_vars(CORE_ENV_VARS)
+@skip_on_billing_error
+def test_cli_workflow_llm_failure_handling(mocker):
+    """Test CLI handles LLM errors gracefully (continue-on-error).
+
+    This test verifies that when the LLM fails to extract data from one file,
+    the CLI continues processing other files and reports the error appropriately.
+    """
+    from slipstream.integrations.anthropic_extractor import ExtractionRefusedError
+    from slipstream.models import ExtractionResult, Receipt
+
+    # Create a mock that raises an error on first call, succeeds on subsequent calls
+    mock_receipt = Receipt(
+        merchant_name="Success Store",
+        date="2024-01-15",
+        total_amount=25.00,
+        currency="USD",
+        items=[],
+        payment_method=None,
+        tax=None,
+        confidence_score=0.92,
+        raw_text="Sample OCR text",
+    )
+
+    mock_result = ExtractionResult(
+        receipt=mock_receipt,
+        input_tokens=100,
+        output_tokens=50,
+        processing_time=0.5,
+    )
+
+    # Mock the extractor to fail once, then succeed
+    mock_extractor = mocker.patch("slipstream.main.AnthropicExtractor", autospec=True)
+    mock_instance = mock_extractor.return_value
+    mock_instance.extract_receipt_data = mocker.AsyncMock(
+        side_effect=[
+            ExtractionRefusedError("Model refused to process"),
+            mock_result,
+            mock_result,
+        ]
+    )
+
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_ID])
+
+    # Should still exit with code 0 (continue-on-error)
+    assert result.exit_code == 0, (
+        f"Expected exit code 0 (continue-on-error), got {result.exit_code}\n"
+        f"Output: {result.stdout}\nError: {result.stderr}"
+    )
+
+    # Verify error message for failed extraction (check both stdout and stderr)
+    error_output = result.stdout + result.stderr
+    assert "Failed to extract structured data" in error_output or (
+        "Model refused to process" in error_output
+    ), (
+        f"Expected LLM error message in output\nOutput: {result.stdout}\nError: {result.stderr}"
+    )
+
+    # Verify successful extractions for other files
+    llm_success_count = result.stdout.count("Structured data extracted")
+    assert llm_success_count >= 2, (
+        f"Expected at least 2 successful LLM extractions, found {llm_success_count}\n"
+        f"Output: {result.stdout}"
+    )
+
+
+@pytest.mark.integration
+@skip_if_missing_env_vars(CORE_ENV_VARS)
+@skip_on_billing_error
+def test_cli_workflow_llm_incomplete_response(mocker):
+    """Test CLI handles LLM truncation errors gracefully.
+
+    This test verifies that when the LLM response is truncated due to token limits,
+    the CLI reports a warning and continues processing other files.
+    """
+    from slipstream.integrations.anthropic_extractor import (
+        ExtractionIncompleteError,
+    )
+    from slipstream.models import ExtractionResult, Receipt
+
+    mock_receipt = Receipt(
+        merchant_name="Complete Store",
+        date="2024-01-15",
+        total_amount=30.00,
+        currency="USD",
+        items=[],
+        payment_method=None,
+        tax=None,
+        confidence_score=0.88,
+        raw_text="Sample OCR text",
+    )
+
+    mock_result = ExtractionResult(
+        receipt=mock_receipt,
+        input_tokens=100,
+        output_tokens=50,
+        processing_time=0.5,
+    )
+
+    # Mock to raise incomplete error once, then succeed
+    mock_extractor = mocker.patch("slipstream.main.AnthropicExtractor", autospec=True)
+    mock_instance = mock_extractor.return_value
+    mock_instance.extract_receipt_data = mocker.AsyncMock(
+        side_effect=[
+            ExtractionIncompleteError("Response truncated"),
+            mock_result,
+            mock_result,
+        ]
+    )
+
+    result = runner.invoke(app, ["process", "--folder", TEST_FOLDER_ID])
+
+    # Should still exit with code 0 (continue-on-error)
+    assert result.exit_code == 0, f"CLI failed: {result.stderr}"
+
+    # Verify warning message for truncated response (check both stdout and stderr)
+    error_output = result.stdout + result.stderr
+    assert (
+        "Response truncated" in error_output
+        or "Failed to extract structured data" in error_output
+    ), (
+        f"Expected truncation warning in output\nOutput: {result.stdout}\nError: {result.stderr}"
+    )
+
+    # Verify successful extractions for other files
+    llm_success_count = result.stdout.count("Structured data extracted")
+    assert llm_success_count >= 2, (
+        f"Expected at least 2 successful LLM extractions, found {llm_success_count}\n"
+        f"Output: {result.stdout}"
+    )
