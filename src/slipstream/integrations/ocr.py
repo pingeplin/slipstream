@@ -47,10 +47,14 @@ class OCREngine:
             content = image_file.read()
 
         # Create Vision API image object
-        image = vision.Image(content=content)
+        # vision.Image content expects bytes,
+        # but type hints sometimes incorrectly expect a dict
+        image = vision.Image(content=content)  # type: ignore
 
         # Perform text detection
-        response = self.client.text_detection(image=image)
+        # text_detection is a dynamic method added at runtime,
+        # which static analysis may not resolve
+        response = self.client.text_detection(image=image)  # type: ignore
 
         # Extract text from response
         if response.text_annotations:

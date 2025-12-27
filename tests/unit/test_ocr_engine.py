@@ -37,7 +37,7 @@ class TestTextExtraction:
         mock_client.text_detection.return_value = mock_response
 
         engine = OCREngine(client=mock_client)
-        result = engine.extract_text("tests/dataset/receipt_en.png")
+        result = engine.extract_text("tests/dataset/receipt_en.jpg")
 
         assert isinstance(result, str)
         assert len(result) > 0
@@ -110,7 +110,7 @@ class TestErrorHandling:
         engine = OCREngine(client=mock_client)
 
         with pytest.raises(GoogleAPIError):
-            engine.extract_text("tests/dataset/receipt_en.png")
+            engine.extract_text("tests/dataset/receipt_en.jpg")
 
 
 class TestAdvancedScenarios:
