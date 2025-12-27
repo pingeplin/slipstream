@@ -1,0 +1,12 @@
+Please extract structured data from the following receipt OCR text. Return only valid JSON matching the schema, with no additional text.
+
+OCR Text:
+{{OCR_TEXT}}
+
+
+Remember:
+- Convert dates to YYYY-MM-DD format
+- Detect currency from receipt
+- Set confidence_score based on data completeness
+- Include original text in raw_text field
+- Return ONLY the JSON object, no markdown code blocks
