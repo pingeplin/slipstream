@@ -63,12 +63,19 @@ def test_invalid_folder_url():
     )
 
 
-def test_process_flow_success(mock_gdrive_client):
+def test_process_flow_success(mock_gdrive_client, tmp_path):
     """Verify the end-to-end flow: parse URL -> list files -> download files."""
     mock_instance = mock_gdrive_client.return_value
-    mock_instance.list_files.return_value = [
+    files = [
         {"id": "f1", "name": "r1.jpg", "mimeType": "image/jpeg"},
         {"id": "f2", "name": "r2.png", "mimeType": "image/png"},
+    ]
+    mock_instance.list_files.return_value = files
+
+    # Mock download_files to return successful results
+    mock_instance.download_files.return_value = [
+        {"success": True, "file_id": "f1", "dest_path": tmp_path / "r1.jpg"},
+        {"success": True, "file_id": "f2", "dest_path": tmp_path / "r2.png"},
     ]
 
     url = "https://drive.google.com/drive/folders/XYZ123"
@@ -78,7 +85,7 @@ def test_process_flow_success(mock_gdrive_client):
     assert "Downloaded r1.jpg" in result.stdout
     assert "Downloaded r2.png" in result.stdout
     assert mock_instance.list_files.called
-    assert mock_instance.download_file.call_count == 2
+    assert mock_instance.download_files.called
 
 
 def test_process_empty_folder(mock_gdrive_client):
@@ -104,16 +111,25 @@ def test_gdrive_api_error(mock_gdrive_client):
     assert "Error communicating with Google Drive" in result.stderr
 
 
-def test_process_partial_download_failure(mock_gdrive_client):
+def test_process_partial_download_failure(mock_gdrive_client, tmp_path):
     """Verify that the CLI continues if one file fails to download."""
     mock_instance = mock_gdrive_client.return_value
-    mock_instance.list_files.return_value = [
+    files = [
         {"id": "f1", "name": "r1.jpg", "mimeType": "image/jpeg"},
         {"id": "f2", "name": "r2.png", "mimeType": "image/png"},
     ]
+    mock_instance.list_files.return_value = files
 
-    # First call succeeds, second fails
-    mock_instance.download_file.side_effect = [None, Exception("Download Failed")]
+    # Mock download_files to return one success and one failure
+    mock_instance.download_files.return_value = [
+        {"success": True, "file_id": "f1", "dest_path": tmp_path / "r1.jpg"},
+        {
+            "success": False,
+            "file_id": "f2",
+            "dest_path": tmp_path / "r2.png",
+            "error": "Download Failed",
+        },
+    ]
 
     result = runner.invoke(app, ["process", "--folder", "some_folder"])
 

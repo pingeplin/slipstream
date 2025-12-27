@@ -33,6 +33,9 @@ def process(
     folder: str = typer.Option(
         ..., "--folder", "-f", help="Google Drive folder ID or URL"
     ),
+    workers: int = typer.Option(
+        4, "--workers", "-w", help="Number of parallel download workers"
+    ),
 ):
     """Process files from a Google Drive folder."""
     try:
@@ -44,7 +47,7 @@ def process(
     typer.echo(f"Processing folder: {folder_id}")
 
     try:
-        client = GDriveClient()
+        client = GDriveClient(max_workers=workers)
         files = client.list_files(
             folder_id, mime_types=["image/jpeg", "image/png", "application/pdf"]
         )
@@ -79,68 +82,76 @@ def process(
             raise typer.Exit(code=1) from e
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        for file in files:
+        # Download all files in parallel
+        download_results = client.download_files(files, Path(tmp_dir))
+
+        # Report download results
+        for result in download_results:
+            if result["success"]:
+                typer.echo(f"Downloaded {result['dest_path'].name}")
+            else:
+                file_name = result["dest_path"].name
+                typer.echo(
+                    f"Failed to download {file_name}: {result['error']}", err=True
+                )
+
+        # Process each successfully downloaded file with OCR and LLM
+        for result in download_results:
+            if not result["success"]:
+                continue
+
+            dest_path = result["dest_path"]
+            file_name = dest_path.name
             try:
-                dest_path = Path(tmp_dir) / file["name"]
-                client.download_file(file["id"], str(dest_path))
-                typer.echo(f"Downloaded {file['name']}")
-
                 # Process with OCR
-                try:
-                    text = ocr_engine.extract_text(str(dest_path))
-                    typer.echo(
-                        f"Extracted text from {file['name']}: {len(text)} characters"
-                    )
+                text = ocr_engine.extract_text(str(dest_path))
+                typer.echo(f"Extracted text from {file_name}: {len(text)} characters")
 
-                    # Process with LLM if extractor is available
-                    if extractor:
-                        try:
-                            result = asyncio.run(extractor.extract_receipt_data(text))
-                            typer.echo(
-                                f"Structured data extracted for {file['name']}: "
-                                f"{result.receipt.merchant_name}, "
-                                f"{result.receipt.date}, "
-                                f"${result.receipt.total_amount:.2f} "
-                                f"{result.receipt.currency}"
-                            )
-                        except ExtractionRefusedError as e:
-                            typer.echo(
-                                f"Failed to extract structured data from "
-                                f"{file['name']}: {e}",
-                                err=True,
-                            )
-                            # Continue with next file (continue-on-error mode)
-                        except ExtractionIncompleteError as e:
-                            typer.echo(
-                                f"Failed to extract structured data from "
-                                f"{file['name']}: {e}",
-                                err=True,
-                            )
-                            # Continue with next file (continue-on-error mode)
-                        except ExtractionError as e:
-                            typer.echo(
-                                f"Failed to extract structured data from "
-                                f"{file['name']}: {e}",
-                                err=True,
-                            )
-                            # Continue with next file (continue-on-error mode)
-                        except Exception as llm_error:
-                            typer.echo(
-                                f"Failed to extract structured data from "
-                                f"{file['name']}: {llm_error}",
-                                err=True,
-                            )
-                            # Continue with next file (continue-on-error mode)
+                # Process with LLM if extractor is available
+                if extractor:
+                    try:
+                        extraction_result = asyncio.run(
+                            extractor.extract_receipt_data(text)
+                        )
+                        typer.echo(
+                            f"Structured data extracted for {file_name}: "
+                            f"{extraction_result.receipt.merchant_name}, "
+                            f"{extraction_result.receipt.date}, "
+                            f"${extraction_result.receipt.total_amount:.2f} "
+                            f"{extraction_result.receipt.currency}"
+                        )
+                    except ExtractionRefusedError as e:
+                        typer.echo(
+                            f"Failed to extract structured data from {file_name}: {e}",
+                            err=True,
+                        )
+                        # Continue with next file (continue-on-error mode)
+                    except ExtractionIncompleteError as e:
+                        typer.echo(
+                            f"Failed to extract structured data from {file_name}: {e}",
+                            err=True,
+                        )
+                        # Continue with next file (continue-on-error mode)
+                    except ExtractionError as e:
+                        typer.echo(
+                            f"Failed to extract structured data from {file_name}: {e}",
+                            err=True,
+                        )
+                        # Continue with next file (continue-on-error mode)
+                    except Exception as llm_error:
+                        typer.echo(
+                            f"Failed to extract structured data from "
+                            f"{file_name}: {llm_error}",
+                            err=True,
+                        )
+                        # Continue with next file (continue-on-error mode)
 
-                except Exception as ocr_error:
-                    typer.echo(
-                        f"Failed to extract text from {file['name']}: {ocr_error}",
-                        err=True,
-                    )
-                    # Continue with next file (continue-on-error mode)
-            except Exception as e:
-                typer.echo(f"Failed to download {file['name']}: {e}", err=True)
-                # Continue with the next file as per PRD "Continue-on-error mode"
+            except Exception as ocr_error:
+                typer.echo(
+                    f"Failed to extract text from {file_name}: {ocr_error}",
+                    err=True,
+                )
+                # Continue with next file (continue-on-error mode)
 
 
 def main():
