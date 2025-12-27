@@ -58,6 +58,7 @@ line-ending = "auto"
 markers = [
     "integration: marks tests as integration tests (select with '-m integration')",
     "unit: marks tests as unit tests (select with '-m unit')",
+    "slow: marks tests as slow-running tests (select with '-m slow')",
 ]
 
 [build-system]
