@@ -4,6 +4,8 @@ import pytest
 
 from slipstream.integrations.gdrive import GDriveClient
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_google_build():

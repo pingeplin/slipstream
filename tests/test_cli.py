@@ -5,6 +5,8 @@ from typer.testing import CliRunner
 
 from slipstream.main import app
 
+pytestmark = pytest.mark.unit
+
 runner = CliRunner()
 
 

@@ -2,6 +2,8 @@ import pytest
 
 from src.slipstream.utils.url_parser import URLParserError, parse_google_id
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.parametrize(
     ("input_str", "expected_id"),
