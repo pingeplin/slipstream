@@ -76,7 +76,7 @@ MCP Server，提供更靈活的整合方式。
 
 - 整合 Google Drive API
 - 從指定資料夾讀取圖片檔案
-- 支援常見圖片格式（JPG, PNG, PDF）
+- 支援常見圖片格式（JPG, PNG）
 - 追蹤已處理檔案（避免重複處理）
 
 **驗收標準：**
@@ -97,7 +97,7 @@ MCP Server，提供更靈活的整合方式。
 
 **驗收標準：**
 
-- 能正確辨識清晰收據上的中英文文字
+- 能正確辨識清晰收據上的中、英、日、韓文文字
 - 辨識準確率 > 85%
 - 單張收據處理時間 < 5 秒
 
@@ -281,8 +281,8 @@ slipstream config --google-creds <PATH> --anthropic-key <KEY>
 
 ### Hour 3-4：OCR 與 LLM 模組開發
 
-- [ ] 整合 Google Vision API
-- [ ] 撰寫 OCR 功能測試
+- [x] 整合 Google Vision API
+- [x] 撰寫 OCR 功能測試
 - [ ] 設計 LLM prompt template
 - [ ] 整合 Anthropic API
 - [ ] 實作資料驗證和清理

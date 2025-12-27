@@ -78,6 +78,41 @@ Apply Object-Oriented SOLID principles:
 6. **Commit with clear messages**
 
 ## Testing with pytest
+
+### Test Structure - Use Functions, Not Classes
+
+**IMPORTANT:** Write tests as **standalone functions**, not as methods inside test classes.
+
+**✅ GOOD - Function-based tests:**
+```python
+def test_calculator_adds_two_numbers():
+    calculator = Calculator()
+    result = calculator.add(2, 3)
+    assert result == 5
+
+def test_calculator_subtracts_two_numbers():
+    calculator = Calculator()
+    result = calculator.subtract(5, 3)
+    assert result == 2
+```
+
+**❌ BAD - Class-based tests:**
+```python
+class TestCalculator:  # Don't do this
+    def test_adds_two_numbers(self):
+        calculator = Calculator()
+        result = calculator.add(2, 3)
+        assert result == 5
+```
+
+**Why use functions instead of classes?**
+- Simpler and more direct
+- Easier to read and maintain
+- No unnecessary indentation
+- Better alignment with pytest's functional style
+- Use fixtures for shared setup instead of class methods
+
+### Running Tests
 ```bash
 # Run all tests
 uv run pytest
