@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import typer
+from dotenv import load_dotenv
 
 from slipstream.integrations.anthropic_extractor import (
     AnthropicExtractor,
@@ -14,6 +15,8 @@ from slipstream.integrations.anthropic_extractor import (
 from slipstream.integrations.gdrive import GDriveClient
 from slipstream.integrations.ocr import OCREngine
 from slipstream.utils.url_parser import URLParserError, parse_google_id
+
+load_dotenv()
 
 app = typer.Typer(no_args_is_help=True)
 
