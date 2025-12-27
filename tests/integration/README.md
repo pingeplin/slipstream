@@ -44,10 +44,10 @@ uv run pytest -m "not integration"
 ### Test Images
 
 Integration tests use sample receipt images from `tests/dataset/`:
-- `receipt_en.png` - English receipt
-- `receipt_zh_tw.png` - Traditional Chinese receipt
-- `receipt_jp.png` - Japanese receipt
-- `receipt_kr.png` - Korean receipt
+- `receipt_en.jpg` - English receipt
+- `receipt_zh_tw.jpg` - Traditional Chinese receipt
+- `receipt_jp.jpg` - Japanese receipt
+- `receipt_kr.jpg` - Korean receipt
 
 ### Cost Considerations
 
