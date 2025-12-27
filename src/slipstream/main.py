@@ -7,7 +7,14 @@ from slipstream.integrations.gdrive import GDriveClient
 from slipstream.integrations.ocr import OCREngine
 from slipstream.utils.url_parser import URLParserError, parse_google_id
 
-app = typer.Typer()
+app = typer.Typer(no_args_is_help=True)
+
+
+@app.callback(invoke_without_command=True)
+def callback(ctx: typer.Context):
+    """Slipstream CLI tool."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
 
 
 @app.command()

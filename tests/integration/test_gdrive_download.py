@@ -46,7 +46,7 @@ def integration_env():
 
 def run_app_and_verify_success(args, expected_folder_id):
     """Helper to run the app and verify common success criteria."""
-    result = runner.invoke(app, args)
+    result = runner.invoke(app, ["process", *args])
 
     # Verify exit code is 0
     assert result.exit_code == 0, (
@@ -93,7 +93,7 @@ def test_process_invalid_folder_id(integration_env):
     """
     # This test doesn't require env vars since it uses a fake ID
     invalid_folder_id = "non_existent_id_12345"
-    result = runner.invoke(app, ["--folder", invalid_folder_id])
+    result = runner.invoke(app, ["process", "--folder", invalid_folder_id])
 
     # Verify exit code is non-zero
     assert result.exit_code == 1, (
@@ -114,7 +114,7 @@ def test_process_empty_folder(integration_env):
 
     Verifies behavior when no files match the required MIME types.
     """
-    result = runner.invoke(app, ["--folder", EMPTY_FOLDER_ID])
+    result = runner.invoke(app, ["process", "--folder", EMPTY_FOLDER_ID])
 
     # Verify exit code is 0 (graceful handling)
     assert result.exit_code == 0, (
