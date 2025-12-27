@@ -272,8 +272,8 @@ slipstream config --google-creds <PATH> --anthropic-key <KEY>
 
 ### Hour 1-2：環境設定與 Google Drive 整合
 
-- [ ] 建立 Python 專案結構
-- [ ] 設定 Google Drive API credentials
+- [x] 建立 Python 專案結構
+- [x] 設定 Google Drive API credentials（透過 gcloud auth application-default login 設定開發權限）
 - [ ] **實作 URL 解析器（支援 Drive/Sheets URL）**
 - [ ] 實作 Drive 資料夾讀取功能
 - [ ] 實作檔案下載功能
