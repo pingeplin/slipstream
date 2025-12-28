@@ -7,6 +7,11 @@ from pathlib import Path
 import typer
 from dotenv import load_dotenv
 
+# Disable gRPC fork support warnings
+# These warnings occur when gRPC clients (Google APIs, Anthropic SDK) are used
+# with thread pools. Setting this env var disables the warnings.
+os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "0")
+
 from slipstream.integrations.anthropic_extractor import (
     AnthropicExtractor,
     ExtractionError,
@@ -191,6 +196,9 @@ def process(
     # Initialize OCR engine
     try:
         ocr_engine = OCREngine()
+        # Eagerly initialize the Vision API client in the main thread
+        # to avoid gRPC initialization warnings when running in executor
+        _ = ocr_engine.client
     except Exception as e:
         typer.echo(f"Failed to initialize OCR engine: {e}", err=True)
         raise typer.Exit(code=1) from e
