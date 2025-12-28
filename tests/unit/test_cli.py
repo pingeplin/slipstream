@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from slipstream.integrations.gdrive import DownloadResult
 from slipstream.main import app
 
 pytestmark = pytest.mark.unit
@@ -13,6 +14,15 @@ runner = CliRunner()
 @pytest.fixture
 def mock_gdrive_client():
     with patch("slipstream.main.GDriveClient") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_ocr_engine():
+    with patch("slipstream.main.OCREngine") as mock:
+        mock_instance = mock.return_value
+        # Default: return simple text for any image
+        mock_instance.extract_text.return_value = "Sample receipt text"
         yield mock
 
 
@@ -63,7 +73,7 @@ def test_invalid_folder_url():
     )
 
 
-def test_process_flow_success(mock_gdrive_client, tmp_path):
+def test_process_flow_success(mock_gdrive_client, mock_ocr_engine, tmp_path):
     """Verify the end-to-end flow: parse URL -> list files -> download files."""
     mock_instance = mock_gdrive_client.return_value
     files = [
@@ -72,11 +82,12 @@ def test_process_flow_success(mock_gdrive_client, tmp_path):
     ]
     mock_instance.list_files.return_value = files
 
-    # Mock download_files to return successful results
-    mock_instance.download_files.return_value = [
-        {"success": True, "file_id": "f1", "dest_path": tmp_path / "r1.jpg"},
-        {"success": True, "file_id": "f2", "dest_path": tmp_path / "r2.png"},
-    ]
+    # Mock download_files to yield successful results (it's now a generator)
+    def mock_download_generator():
+        yield DownloadResult(success=True, file_id="f1", dest_path=tmp_path / "r1.jpg")
+        yield DownloadResult(success=True, file_id="f2", dest_path=tmp_path / "r2.png")
+
+    mock_instance.download_files.return_value = mock_download_generator()
 
     url = "https://drive.google.com/drive/folders/XYZ123"
     result = runner.invoke(app, ["process", "--folder", url])
@@ -111,7 +122,9 @@ def test_gdrive_api_error(mock_gdrive_client):
     assert "Error communicating with Google Drive" in result.stderr
 
 
-def test_process_partial_download_failure(mock_gdrive_client, tmp_path):
+def test_process_partial_download_failure(
+    mock_gdrive_client, mock_ocr_engine, tmp_path
+):
     """Verify that the CLI continues if one file fails to download."""
     mock_instance = mock_gdrive_client.return_value
     files = [
@@ -120,16 +133,17 @@ def test_process_partial_download_failure(mock_gdrive_client, tmp_path):
     ]
     mock_instance.list_files.return_value = files
 
-    # Mock download_files to return one success and one failure
-    mock_instance.download_files.return_value = [
-        {"success": True, "file_id": "f1", "dest_path": tmp_path / "r1.jpg"},
-        {
-            "success": False,
-            "file_id": "f2",
-            "dest_path": tmp_path / "r2.png",
-            "error": "Download Failed",
-        },
-    ]
+    # Mock download_files to yield one success and one failure (it's now a generator)
+    def mock_download_generator():
+        yield DownloadResult(success=True, file_id="f1", dest_path=tmp_path / "r1.jpg")
+        yield DownloadResult(
+            success=False,
+            file_id="f2",
+            dest_path=tmp_path / "r2.png",
+            error="Download Failed",
+        )
+
+    mock_instance.download_files.return_value = mock_download_generator()
 
     result = runner.invoke(app, ["process", "--folder", "some_folder"])
 

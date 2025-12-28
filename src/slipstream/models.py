@@ -39,3 +39,16 @@ class ExtractionResult(BaseModel):
     cache_read_input_tokens: int = 0
     processing_time: float  # in seconds
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ProcessingResult(BaseModel):
+    """Result from processing a single file through the pipeline."""
+
+    file_id: str
+    file_name: str
+    download_success: bool
+    download_error: str | None = None
+    ocr_text: str | None = None
+    ocr_error: str | None = None
+    extraction_result: ExtractionResult | None = None
+    extraction_error: str | None = None

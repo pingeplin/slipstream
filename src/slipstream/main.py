@@ -1,6 +1,7 @@
 import asyncio
 import os
 import tempfile
+from collections.abc import Callable, Generator
 from pathlib import Path
 
 import typer
@@ -12,8 +13,9 @@ from slipstream.integrations.anthropic_extractor import (
     ExtractionIncompleteError,
     ExtractionRefusedError,
 )
-from slipstream.integrations.gdrive import GDriveClient
+from slipstream.integrations.gdrive import DownloadResult, GDriveClient
 from slipstream.integrations.ocr import OCREngine
+from slipstream.models import ProcessingResult
 from slipstream.utils.url_parser import URLParserError, parse_google_id
 
 load_dotenv()
@@ -26,6 +28,133 @@ def callback(ctx: typer.Context):
     """Slipstream CLI tool."""
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
+
+
+async def process_downloaded_file(
+    download_result: DownloadResult,
+    ocr_engine: OCREngine,
+    extractor: AnthropicExtractor | None,
+    on_progress: Callable[[str, str], None] | None = None,
+) -> ProcessingResult:
+    """Process a single downloaded file through OCR and LLM extraction.
+
+    Args:
+        download_result: Download result with success, dest_path, etc.
+        ocr_engine: OCR engine for text extraction
+        extractor: Anthropic extractor for structured data extraction (optional)
+        on_progress: Optional callback for progress updates (event_type, message)
+
+    Returns:
+        ProcessingResult with OCR text, extraction results, and any errors
+    """
+    dest_path = download_result.dest_path
+    file_name = dest_path.name
+    file_id = download_result.file_id
+
+    # Initialize result
+    result = ProcessingResult(
+        file_id=file_id,
+        file_name=file_name,
+        download_success=download_result.success,
+        download_error=download_result.error if not download_result.success else None,
+    )
+
+    # Skip processing if download failed
+    if not download_result.success:
+        return result
+
+    # Step 1: OCR extraction
+    try:
+        # OCR is synchronous, so we run it in an executor for true parallelism
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(None, ocr_engine.extract_text, str(dest_path))
+        result.ocr_text = text
+
+        message = f"Extracted text from {file_name}: {len(text)} characters"
+        if on_progress:
+            on_progress("ocr_success", message)
+
+    except Exception as e:
+        # Catch-all for OCR errors
+        result.ocr_error = str(e)
+        message = f"Failed to process {file_name}: {e}"
+        if on_progress:
+            on_progress("ocr_error", message)
+        return result  # Don't attempt LLM if OCR failed
+
+    # Step 2: LLM extraction (already async)
+    if extractor:
+        try:
+            extraction_result = await extractor.extract_receipt_data(text)
+            result.extraction_result = extraction_result
+
+            message = (
+                f"Structured data extracted for {file_name}: "
+                f"{extraction_result.receipt.merchant_name}, "
+                f"{extraction_result.receipt.date}, "
+                f"${extraction_result.receipt.total_amount:.2f} "
+                f"{extraction_result.receipt.currency}"
+            )
+            if on_progress:
+                on_progress("llm_success", message)
+
+        except (
+            ExtractionRefusedError,
+            ExtractionIncompleteError,
+            ExtractionError,
+            Exception,
+        ) as e:
+            result.extraction_error = str(e)
+            message = f"Failed to extract structured data from {file_name}: {e}"
+            if on_progress:
+                on_progress("llm_error", message)
+
+    return result
+
+
+async def run_pipeline(
+    download_results: Generator[DownloadResult, None, None],
+    ocr_engine: OCREngine,
+    extractor: AnthropicExtractor | None = None,
+    on_progress: Callable[[str, str], None] | None = None,
+) -> list[ProcessingResult]:
+    """Run the streaming pipeline: process files as they download.
+
+    Args:
+        download_results: Generator yielding DownloadResult objects as
+            downloads complete
+        ocr_engine: OCR engine for text extraction
+        extractor: Optional Anthropic extractor for structured data extraction
+        on_progress: Optional callback for progress updates (event_type, message)
+
+    Returns:
+        List of ProcessingResult objects containing OCR text, LLM extractions,
+        and errors
+    """
+    # Stream: Start processing each file as soon as it downloads
+    tasks = []
+    for download_result in download_results:
+        # Report download status immediately
+        if download_result.success:
+            message = f"Downloaded {download_result.dest_path.name}"
+            if on_progress:
+                on_progress("download_success", message)
+        else:
+            file_name = download_result.dest_path.name
+            message = f"Failed to download {file_name}: {download_result.error}"
+            if on_progress:
+                on_progress("download_error", message)
+
+        # Start processing this file immediately
+        # (don't wait for other downloads)
+        task = asyncio.create_task(
+            process_downloaded_file(download_result, ocr_engine, extractor, on_progress)
+        )
+        tasks.append(task)
+
+    # Wait for all processing tasks to complete
+    results = await asyncio.gather(*tasks)
+    return list(results)
 
 
 @app.command()
@@ -81,77 +210,28 @@ def process(
             typer.echo(f"Failed to initialize Anthropic extractor: {e}", err=True)
             raise typer.Exit(code=1) from e
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        # Download all files in parallel
-        download_results = client.download_files(files, Path(tmp_dir))
+    # Create progress callback for CLI output
+    def cli_progress(event_type: str, message: str):
+        """Callback to handle progress events and output to CLI."""
+        if "error" in event_type:
+            typer.echo(message, err=True)
+        else:
+            typer.echo(message)
 
-        # Report download results
-        for result in download_results:
-            if result["success"]:
-                typer.echo(f"Downloaded {result['dest_path'].name}")
-            else:
-                file_name = result["dest_path"].name
-                typer.echo(
-                    f"Failed to download {file_name}: {result['error']}", err=True
-                )
+    # Execute the async pipeline
+    async def execute_pipeline():
+        """Execute the pipeline with temporary directory management."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dest_dir = Path(tmp_dir)
+            download_results = client.download_files(files, dest_dir)
+            await run_pipeline(
+                download_results=download_results,
+                ocr_engine=ocr_engine,
+                extractor=extractor,
+                on_progress=cli_progress,
+            )
 
-        # Process each successfully downloaded file with OCR and LLM
-        for result in download_results:
-            if not result["success"]:
-                continue
-
-            dest_path = result["dest_path"]
-            file_name = dest_path.name
-            try:
-                # Process with OCR
-                text = ocr_engine.extract_text(str(dest_path))
-                typer.echo(f"Extracted text from {file_name}: {len(text)} characters")
-
-                # Process with LLM if extractor is available
-                if extractor:
-                    try:
-                        extraction_result = asyncio.run(
-                            extractor.extract_receipt_data(text)
-                        )
-                        typer.echo(
-                            f"Structured data extracted for {file_name}: "
-                            f"{extraction_result.receipt.merchant_name}, "
-                            f"{extraction_result.receipt.date}, "
-                            f"${extraction_result.receipt.total_amount:.2f} "
-                            f"{extraction_result.receipt.currency}"
-                        )
-                    except ExtractionRefusedError as e:
-                        typer.echo(
-                            f"Failed to extract structured data from {file_name}: {e}",
-                            err=True,
-                        )
-                        # Continue with next file (continue-on-error mode)
-                    except ExtractionIncompleteError as e:
-                        typer.echo(
-                            f"Failed to extract structured data from {file_name}: {e}",
-                            err=True,
-                        )
-                        # Continue with next file (continue-on-error mode)
-                    except ExtractionError as e:
-                        typer.echo(
-                            f"Failed to extract structured data from {file_name}: {e}",
-                            err=True,
-                        )
-                        # Continue with next file (continue-on-error mode)
-                    except Exception as llm_error:
-                        typer.echo(
-                            f"Failed to extract structured data from "
-                            f"{file_name}: {llm_error}",
-                            err=True,
-                        )
-                        # Continue with next file (continue-on-error mode)
-
-            except Exception as ocr_error:
-                typer.echo(
-                    f"Failed to extract text from {file_name}: {ocr_error}",
-                    err=True,
-                )
-                # Continue with next file (continue-on-error mode)
+    asyncio.run(execute_pipeline())
 
 
 def main():
