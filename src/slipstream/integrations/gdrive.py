@@ -1,10 +1,18 @@
+"""Google Drive integration for downloading files.
+
+Note: The Google API Client library uses dynamic method creation at runtime.
+Methods like .files() are added to Resource objects when build() is called,
+so type checkers can't detect them. We use # type: ignore[attr-defined] to
+suppress these warnings where appropriate.
+"""
+
 import io
 import threading
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from googleapiclient.discovery import build
+from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaIoBaseDownload
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 _thread_local = threading.local()
 
 
-def _get_thread_service() -> any:
+def _get_thread_service() -> Resource:
     """Get or create a thread-local Drive service.
 
     This avoids the heavy overhead of calling build() for every file,
@@ -64,7 +72,8 @@ def download_single_file(file_info: dict, dest_dir: Path) -> DownloadResult:
         # Use a thread-local service to avoid heavy discovery calls
         # while maintaining thread safety
         thread_service = _get_thread_service()
-        request = thread_service.files().get_media(fileId=file_id)
+        # Note: files() is dynamically added by googleapiclient at runtime
+        request = thread_service.files().get_media(fileId=file_id)  # type: ignore[attr-defined]
         with io.FileIO(str(dest_path), "wb") as fh:
             downloader = MediaIoBaseDownload(fh, request)
             done = False
@@ -88,8 +97,22 @@ def download_single_file(file_info: dict, dest_dir: Path) -> DownloadResult:
 
 class GDriveClient:
     def __init__(self, max_workers: int = 4):
-        self.service = build("drive", "v3")
+        self._service: Resource | None = None  # Private cache for lazy initialization
         self.max_workers = max_workers
+
+    @property
+    def service(self) -> Resource:
+        """Lazily initialize and return the Google Drive service.
+
+        The service is created on first access and cached for subsequent calls.
+        This avoids gRPC initialization overhead during instantiation.
+
+        Returns:
+            The Google Drive API service (Resource object)
+        """
+        if self._service is None:
+            self._service = build("drive", "v3")
+        return self._service
 
     def list_files(self, folder_id, mime_types=None):
         query = f"'{folder_id}' in parents"
@@ -97,15 +120,17 @@ class GDriveClient:
             mime_query = " or ".join([f"mimeType='{m}'" for m in mime_types])
             query += f" and ({mime_query})"
 
+        # Note: files() is dynamically added by googleapiclient at runtime
         results = (
-            self.service.files()
+            self.service.files()  # type: ignore[attr-defined]
             .list(q=query, fields="files(id, name, mimeType)")
             .execute()
         )
         return results.get("files", [])
 
     def download_file(self, file_id, dest_path):
-        request = self.service.files().get_media(fileId=file_id)
+        # Note: files() is dynamically added by googleapiclient at runtime
+        request = self.service.files().get_media(fileId=file_id)  # type: ignore[attr-defined]
         with io.FileIO(dest_path, "wb") as fh:
             downloader = MediaIoBaseDownload(fh, request)
             done = False
