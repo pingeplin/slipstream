@@ -14,9 +14,20 @@ def mock_google_build():
 
 
 def test_init_client_success(mock_google_build):
-    """Scenario 1.1: Initialize the Google Drive service using ADC."""
+    """Scenario 1.1: Initialize the Google Drive client.
+
+    With lazy initialization, the service is created on first access.
+    """
     client = GDriveClient()
-    assert client.service is not None
+
+    # build() should NOT be called yet (lazy initialization)
+    mock_google_build.assert_not_called()
+
+    # Access the service property to trigger initialization
+    service = client.service
+
+    # NOW build() should have been called
+    assert service is not None
     mock_google_build.assert_called_once_with("drive", "v3")
 
 

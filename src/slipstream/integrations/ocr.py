@@ -1,5 +1,6 @@
 """OCR Engine using Google Cloud Vision API for receipt text extraction."""
 
+import threading
 from pathlib import Path
 
 from google.cloud import vision
@@ -19,9 +20,30 @@ class OCREngine:
 
         Args:
             client: Optional pre-configured ImageAnnotatorClient.
-                   If None, a default client will be created.
+                   If None, a default client will be created lazily on first use.
         """
-        self.client = client or vision.ImageAnnotatorClient()
+        self._client = client
+        self._client_initialized = client is not None
+        self._client_lock = threading.Lock()
+
+    @property
+    def client(self) -> vision.ImageAnnotatorClient:
+        """Lazily initialize and return the Vision API client.
+
+        The client is created on first access and cached for subsequent calls.
+        This avoids gRPC initialization overhead during instantiation.
+        Uses double-check locking for thread-safe lazy initialization.
+
+        Returns:
+            The Google Cloud Vision ImageAnnotatorClient
+        """
+        if not self._client_initialized:
+            with self._client_lock:
+                # Double-check inside lock to prevent race conditions
+                if not self._client_initialized:
+                    self._client = vision.ImageAnnotatorClient()
+                    self._client_initialized = True
+        return self._client  # type: ignore[return-value]
 
     def extract_text(self, image_path: str) -> str:
         """
