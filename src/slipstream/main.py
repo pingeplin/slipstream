@@ -19,6 +19,7 @@ from slipstream.integrations.anthropic_extractor import (
     ExtractionRefusedError,
 )
 from slipstream.integrations.gdrive import DownloadResult, GDriveClient
+from slipstream.integrations.gsheets import GSheetsClient, receipt_to_sheet_row
 from slipstream.integrations.ocr import OCREngine
 from slipstream.models import ProcessingResult
 from slipstream.utils.url_parser import URLParserError, parse_google_id
@@ -121,6 +122,7 @@ async def run_pipeline(
     download_results: Generator[DownloadResult, None, None],
     ocr_engine: OCREngine,
     extractor: AnthropicExtractor | None = None,
+    gsheets_client: GSheetsClient | None = None,
     on_progress: Callable[[str, str], None] | None = None,
 ) -> list[ProcessingResult]:
     """Run the streaming pipeline: process files as they download.
@@ -130,6 +132,7 @@ async def run_pipeline(
             downloads complete
         ocr_engine: OCR engine for text extraction
         extractor: Optional Anthropic extractor for structured data extraction
+        gsheets_client: Optional Google Sheets client for writing results
         on_progress: Optional callback for progress updates (event_type, message)
 
     Returns:
@@ -159,6 +162,29 @@ async def run_pipeline(
 
     # Wait for all processing tasks to complete
     results = await asyncio.gather(*tasks)
+
+    # If Google Sheets client is provided, append successful extractions
+    if gsheets_client:
+        successful_receipts = []
+        for result in results:
+            if result.extraction_result:
+                receipt = result.extraction_result.receipt
+                row = receipt_to_sheet_row(receipt)
+                successful_receipts.append(row)
+
+        if successful_receipts:
+            try:
+                # Append all rows in a single batch operation
+                gsheets_client.append_rows(successful_receipts)
+                count = len(successful_receipts)
+                message = f"Successfully appended {count} receipts to spreadsheet"
+                if on_progress:
+                    on_progress("sheets_success", message)
+            except Exception as e:
+                message = f"Failed to append receipts to spreadsheet: {e}"
+                if on_progress:
+                    on_progress("sheets_error", message)
+
     return list(results)
 
 
@@ -169,6 +195,12 @@ def process(
     ),
     workers: int = typer.Option(
         4, "--workers", "-w", help="Number of parallel download workers"
+    ),
+    sheet: str | None = typer.Option(
+        None,
+        "--sheet",
+        "-s",
+        help="Google Sheets spreadsheet ID or URL to write results to",
     ),
 ):
     """Process files from a Google Drive folder."""
@@ -218,6 +250,20 @@ def process(
             typer.echo(f"Failed to initialize Anthropic extractor: {e}", err=True)
             raise typer.Exit(code=1) from e
 
+    # Initialize Google Sheets client if --sheet option is provided
+    gsheets_client = None
+    if sheet:
+        try:
+            spreadsheet_id = parse_google_id(sheet)
+            gsheets_client = GSheetsClient(spreadsheet_id=spreadsheet_id)
+            typer.echo(f"Will write results to spreadsheet: {spreadsheet_id}")
+        except URLParserError as e:
+            typer.echo(f"Error parsing spreadsheet ID: {e}", err=True)
+            raise typer.Exit(code=1) from e
+        except Exception as e:
+            typer.echo(f"Failed to initialize Google Sheets client: {e}", err=True)
+            raise typer.Exit(code=1) from e
+
     # Create progress callback for CLI output
     def cli_progress(event_type: str, message: str):
         """Callback to handle progress events and output to CLI."""
@@ -236,6 +282,7 @@ def process(
                 download_results=download_results,
                 ocr_engine=ocr_engine,
                 extractor=extractor,
+                gsheets_client=gsheets_client,
                 on_progress=cli_progress,
             )
 
