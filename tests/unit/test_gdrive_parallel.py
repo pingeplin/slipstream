@@ -7,6 +7,18 @@ from slipstream.integrations.gdrive import GDriveClient, download_single_file
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def clear_gdrive_thread_local():
+    """Clear the thread-local Drive service before each test to ensure isolation."""
+    from slipstream.integrations.gdrive import _thread_local
+
+    if hasattr(_thread_local, "drive_service"):
+        del _thread_local.drive_service
+    yield
+    if hasattr(_thread_local, "drive_service"):
+        del _thread_local.drive_service
+
+
 @pytest.fixture
 def mock_google_build():
     with mock.patch("slipstream.integrations.gdrive.build") as m:

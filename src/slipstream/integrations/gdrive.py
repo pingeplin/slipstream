@@ -1,4 +1,5 @@
 import io
+import threading
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -6,6 +7,21 @@ from pathlib import Path
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from pydantic import BaseModel, ConfigDict, Field
+
+# Thread-local storage for Google API services to avoid redundant build() calls
+# while maintaining thread safety for httplib2.Http objects.
+_thread_local = threading.local()
+
+
+def _get_thread_service() -> any:
+    """Get or create a thread-local Drive service.
+
+    This avoids the heavy overhead of calling build() for every file,
+    while ensuring each thread has its own Http object.
+    """
+    if not hasattr(_thread_local, "drive_service"):
+        _thread_local.drive_service = build("drive", "v3")
+    return _thread_local.drive_service
 
 
 class DownloadResult(BaseModel):
@@ -45,8 +61,9 @@ def download_single_file(file_info: dict, dest_dir: Path) -> DownloadResult:
     dest_path = dest_dir / file_name
 
     try:
-        # Create a thread-local service to avoid SSL/threading issues
-        thread_service = build("drive", "v3")
+        # Use a thread-local service to avoid heavy discovery calls
+        # while maintaining thread safety
+        thread_service = _get_thread_service()
         request = thread_service.files().get_media(fileId=file_id)
         with io.FileIO(str(dest_path), "wb") as fh:
             downloader = MediaIoBaseDownload(fh, request)
