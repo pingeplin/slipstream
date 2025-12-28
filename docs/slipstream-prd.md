@@ -141,19 +141,21 @@ MCP Server，提供更靈活的整合方式。
 
 **優先級：P0**
 
-- 整合 Google Sheets API
-- 支援建立新試算表或寫入現有試算表
-- 自動格式化欄位（日期、金額等）
+- [x] 整合 Google Sheets API
+- [ ] 支援建立新試算表或寫入現有試算表
+- [x] 自動格式化欄位（日期、金額等）
 
 **試算表結構：**
-| 檔案名稱 | 日期 | 商家 | 項目 | 數量 | 單價 | 金額 | 總計 | 幣別 | 發票號碼 | 付款方式 |
-處理時間 |
+| 商家 | 日期 | 幣別 | 總計 |
+|------|------|------|------|
+
+> 註：目前 MVP 採用簡化的 4 欄位結構，後續可依需求擴充。
 
 **驗收標準：**
 
-- 能成功寫入資料到 Google Sheets
-- 資料格式正確且易於閱讀
-- 支援錯誤重試機制
+- [x] 能成功寫入資料到 Google Sheets
+- [x] 資料格式正確且易於閱讀
+- [x] 支援錯誤重試機制
 
 #### 5. CLI 介面實作
 
@@ -161,59 +163,35 @@ MCP Server，提供更靈活的整合方式。
 
 **主要指令：**
 
-```bash
-# 處理指定 Google Drive 資料夾中的所有收據
-# 支援 Folder ID 或完整的分享連結
-slipstream process --folder <FOLDER_ID_OR_URL> --sheet <SHEET_ID_OR_URL>
-
-# 範例：使用 ID
-slipstream process --folder 1AbCdEfGhIjKlMnOpQrStUvWxYz --sheet 1XyZwVuTsRqPoNmLkJiHgFeDcBa
-
-# 範例：使用分享連結
-slipstream process \
-  --folder "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz" \
-  --sheet "https://docs.google.com/spreadsheets/d/1XyZwVuTsRqPoNmLkJiHgFeDcBa/edit"
-
-# 處理單一檔案
-slipstream process-file --file <FILE_ID_OR_URL> --sheet <SHEET_ID_OR_URL>
-
-# 列出 Drive 資料夾中的檔案
-slipstream list --folder <FOLDER_ID_OR_URL>
-
-# 顯示處理歷史
-slipstream history
-
-# 設定 credentials
-slipstream config --google-creds <PATH> --anthropic-key <KEY>
-```
+- [x] `slipstream process --folder <FOLDER_ID_OR_URL> --sheet <SHEET_ID_OR_URL>`
 
 **URL 解析功能：**
 
 工具會自動識別並解析以下格式的 URL：
 
-| 類型             | URL 格式                                             | 解析結果         |
-|----------------|----------------------------------------------------|--------------|
-| Drive 資料夾      | `https://drive.google.com/drive/folders/{ID}`      | 提取 Folder ID |
-| Drive 資料夾 (u/) | `https://drive.google.com/drive/u/0/folders/{ID}`  | 提取 Folder ID |
-| Drive 檔案       | `https://drive.google.com/file/d/{ID}/view`        | 提取 File ID   |
-| Google Sheets  | `https://docs.google.com/spreadsheets/d/{ID}/edit` | 提取 Sheet ID  |
+| 類型             | URL 格式                                             | 解析結果             |
+|----------------|----------------------------------------------------|------------------|
+| Drive 資料夾      | `https://drive.google.com/drive/folders/{ID}`      | [x] 提取 Folder ID |
+| Drive 資料夾 (u/) | `https://drive.google.com/drive/u/0/folders/{ID}`  | [x] 提取 Folder ID |
+| Drive 檔案       | `https://drive.google.com/file/d/{ID}/view`        | [x] 提取 File ID   |
+| Google Sheets  | `https://docs.google.com/spreadsheets/d/{ID}/edit` | [x] 提取 Sheet ID  |
 
 **進階選項：**
 
-- `--dry-run`: 預覽而不實際執行
-- `--verbose`: 顯示詳細日誌
-- `--force`: 強制重新處理已處理的檔案
-- `--output-json`: 將結構化資料輸出為 JSON 檔案
+- [ ] `--dry-run`: 預覽而不實際執行
+- [ ] `--verbose`: 顯示詳細日誌
+- [ ] `--force`: 強制重新處理已處理的檔案
+- [ ] `--output-json`: 將結構化資料輸出為 JSON 檔案
 
 **驗收標準：**
 
-- CLI 介面清晰易用
-- 自動識別 ID 或 URL 輸入
-- 支援各種 Google Drive/Sheets URL 格式
-- URL 解析錯誤時提供清楚的錯誤訊息
-- 錯誤訊息友善且有幫助
-- 支援基本的 help 文檔
-- 進度顯示清楚（批次處理時）
+- [x] CLI 介面清晰易用
+- [x] 自動識別 ID 或 URL 輸入
+- [x] 支援各種 Google Drive/Sheets URL 格式
+- [x] URL 解析錯誤時提供清楚的錯誤訊息
+- [x] 錯誤訊息友善且有幫助
+- [x] 支援基本的 help 文檔
+- [x] 進度顯示清楚（批次處理時）
 
 ---
 
@@ -289,27 +267,27 @@ slipstream config --google-creds <PATH> --anthropic-key <KEY>
 
 ### Hour 5-6：Google Sheets 整合與 CLI 介面
 
-- [ ] 設定 Google Sheets API
-- [ ] 實作寫入功能
+- [x] 設定 Google Sheets API
+- [x] 實作寫入功能
 - [ ] 格式化試算表
-- [ ] 實作基本 CLI 指令（click/typer）
-- [ ] 整合 URL 解析器到 CLI 參數處理
+- [x] 實作基本 CLI 指令（click/typer）
+- [x] 整合 URL 解析器到 CLI 參數處理
 - [ ] 新增進度顯示（rich）
-- [ ] 測試 ID 和 URL 兩種輸入方式
+- [x] 測試 ID 和 URL 兩種輸入方式
 
 ### Hour 7：檔案追蹤與批次處理
 
 - [ ] 實作 SQLite 資料庫（追蹤已處理檔案）
-- [ ] 實作批次處理邏輯
-- [ ] 錯誤處理和重試機制
-- [ ] 日誌記錄
+- [x] 實作批次處理邏輯
+- [x] 錯誤處理和重試機制
+- [x] 日誌記錄
 
 ### Hour 8：整合測試與文檔
 
-- [ ] 端對端測試
-- [ ] 效能優化
-- [ ] 撰寫 README 和使用說明
-- [ ] 準備 requirements.txt 和安裝腳本
+- [x] 端對端測試
+- [x] 效能優化
+- [x] 撰寫 README 和使用說明
+- [x] 準備 requirements.txt 和安裝腳本 (pyproject.toml)
 
 ---
 
