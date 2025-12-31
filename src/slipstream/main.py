@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 # with thread pools. Setting this env var disables the warnings.
 os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "0")
 
+from slipstream import __version__
 from slipstream.integrations.anthropic_extractor import (
     AnthropicExtractor,
     ExtractionError,
@@ -30,8 +31,19 @@ load_dotenv()
 app = typer.Typer(no_args_is_help=True)
 
 
+def version_callback(value: bool):
+    if value:
+        typer.echo(f"slipstream version: {__version__}")
+        raise typer.Exit()
+
+
 @app.callback(invoke_without_command=True)
-def callback(ctx: typer.Context):
+def callback(
+    ctx: typer.Context,
+    _version: bool = typer.Option(
+        None, "--version", callback=version_callback, is_eager=True
+    ),
+):
     """Slipstream CLI tool."""
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
