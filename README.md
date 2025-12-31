@@ -20,9 +20,25 @@ Slipstream is a CLI tool designed to automate the process of handling receipts. 
 
 ### Installation
 
+#### As a Command-Line Tool (Recommended)
+
+If you have `uv` installed, you can install Slipstream directly from GitHub as a global tool:
+
+```bash
+uv tool install git+https://github.com/pingeplin/slipstream.git
+```
+
+Now you can run it directly:
+
+```bash
+slipstream --help
+```
+
+#### For Development
+
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-repo/slipstream.git
+   git clone https://github.com/pingeplin/slipstream.git
    cd slipstream
    ```
 
@@ -44,32 +60,32 @@ Slipstream requires access to Google Cloud and Anthropic APIs.
 
 ## Usage
 
-You can run Slipstream using `uv run`.
+If installed as a tool, you can run `slipstream` directly. Otherwise, use `uv run slipstream`.
 
 ### Processing a Folder
 
 To process all receipts in a Google Drive folder and export to Google Sheets or a local CSV file:
 
 ```bash
-uv run slipstream process --folder "FOLDER_URL" --sheet "SHEET_URL"
+slipstream process --folder "FOLDER_URL" --sheet "SHEET_URL"
 ```
 
 Or using IDs and short flags:
 
 ```bash
-uv run slipstream process -f YOUR_FOLDER_ID -s YOUR_SHEET_ID
+slipstream process -f YOUR_FOLDER_ID -s YOUR_SHEET_ID
 ```
 
 You can also control parallelism with the `--workers` option:
 
 ```bash
-uv run slipstream process -f YOUR_FOLDER_ID -w 8
+slipstream process -f YOUR_FOLDER_ID -w 8
 ```
 
 To save the results to a local CSV file:
 
 ```bash
-uv run slipstream process -f YOUR_FOLDER_ID --save-local receipts.csv
+slipstream process -f YOUR_FOLDER_ID --save-local receipts.csv
 ```
 
 ## Development
