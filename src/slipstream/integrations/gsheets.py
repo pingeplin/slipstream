@@ -17,6 +17,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from slipstream.integrations.gdrive import generate_file_url
 from slipstream.models import Receipt
 
 
@@ -56,23 +57,25 @@ def _is_retryable_error(exception: BaseException) -> bool:
 def receipt_to_sheet_row(receipt: Receipt) -> list[Any]:
     """Convert a Receipt model to a Google Sheets row.
 
-    The row contains 4 columns in this order:
+    The row contains 5 columns in this order:
     1. 商家 (Merchant) - merchant_name
     2. 日期 (Date) - date (YYYY-MM-DD format)
     3. 幣別 (Currency) - currency
     4. 總計 (Total) - total_amount
+    5. 圖片連結 (Image Link) - Google Drive file URL
 
     Args:
         receipt: The Receipt object to convert
 
     Returns:
-        A list with 4 values: [merchant_name, date, currency, total_amount]
+        A list with 5 values: [merchant_name, date, currency, total_amount, image_url]
     """
     return [
         receipt.merchant_name,
         receipt.date,
         receipt.currency,
         receipt.total_amount,
+        generate_file_url(receipt.file_id),
     ]
 
 

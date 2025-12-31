@@ -166,11 +166,18 @@ async def run_pipeline(
     # Wait for all processing tasks to complete
     results = await asyncio.gather(*tasks)
 
-    # Collect successful receipts for export
+    # Collect successful receipts for export and set file_id
     successful_receipts = []
     for result in results:
         if result.extraction_result:
-            successful_receipts.append(result.extraction_result.receipt)
+            receipt = result.extraction_result.receipt
+            # Set file_id on receipt from the processing result
+            receipt_with_file_id = receipt.model_copy(
+                update={"file_id": result.file_id}
+            )
+            # Update the receipt in the extraction_result as well
+            result.extraction_result.receipt = receipt_with_file_id
+            successful_receipts.append(receipt_with_file_id)
 
     # If Google Sheets client is provided, append successful extractions
     if gsheets_client and successful_receipts:

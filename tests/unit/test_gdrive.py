@@ -106,3 +106,35 @@ def test_download_file_not_found(mock_google_build, tmp_path):
 
     with pytest.raises(HttpError):
         client.download_file("invalid_id", str(dest_path))
+
+
+def test_generate_file_url_with_valid_id():
+    """Test that generate_file_url correctly formats URL with valid file ID."""
+    from slipstream.integrations.gdrive import generate_file_url
+
+    file_id = "abc123def456"
+    url = generate_file_url(file_id)
+
+    assert url == "https://drive.google.com/file/d/abc123def456/view"
+
+
+def test_generate_file_url_format():
+    """Test that URL follows expected Google Drive pattern."""
+    from slipstream.integrations.gdrive import generate_file_url
+
+    file_id = "test-file-id-789"
+    url = generate_file_url(file_id)
+
+    # Verify URL structure
+    assert url.startswith("https://drive.google.com/file/d/")
+    assert url.endswith("/view")
+    assert file_id in url
+
+
+def test_generate_file_url_with_none_returns_empty():
+    """Test that None file_id returns empty string."""
+    from slipstream.integrations.gdrive import generate_file_url
+
+    url = generate_file_url(None)
+
+    assert url == ""

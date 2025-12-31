@@ -92,8 +92,8 @@ def test_export_receipts_content_consistency(
     # Should have header + 1 data row
     assert len(rows) == 2
 
-    # Check header (商家, 日期, 幣別, 總計)
-    assert rows[0] == ["商家", "日期", "幣別", "總計"]
+    # Check header (商家, 日期, 幣別, 總計, 圖片連結)
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
 
     # Check data row matches receipt fields
     assert rows[1] == [
@@ -101,6 +101,7 @@ def test_export_receipts_content_consistency(
         sample_receipt.date,
         sample_receipt.currency,
         str(sample_receipt.total_amount),
+        "",  # Empty image URL since no file_id
     ]
 
 
@@ -124,7 +125,7 @@ def test_export_receipts_appends_to_existing(
 
     # Should have header + 2 data rows
     assert len(rows) == 3
-    assert rows[0] == ["商家", "日期", "幣別", "總計"]
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
 
     # First receipt
     assert rows[1][0] == "Store A"
@@ -148,7 +149,7 @@ def test_export_receipts_unicode_handling(
         rows = list(reader)
 
     # Check that Chinese characters in header are preserved
-    assert rows[0] == ["商家", "日期", "幣別", "總計"]
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
 
     # Check that Chinese characters in data are preserved
     assert rows[1][0] == "全聯福利中心"
@@ -224,9 +225,124 @@ def test_export_receipts_concurrent_writes(
     # Should have header + 10 data rows
     # Note: The first write creates the header, subsequent writes append data only
     assert len(rows) == 11  # 1 header + 10 data rows
-    assert rows[0] == ["商家", "日期", "幣別", "總計"]
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
 
     # Verify all receipts were written (order may vary due to concurrency)
     merchant_names = {row[0] for row in rows[1:]}
     expected_names = {f"Store {i}" for i in range(10)}
     assert merchant_names == expected_names
+
+
+def test_export_receipts_header_includes_image_url(tmp_path: Path) -> None:
+    """Verify that CSV header includes image_url as 5th column."""
+    export_path = tmp_path / "receipts.csv"
+    exporter = LocalExporter()
+
+    receipt = Receipt(
+        merchant_name="Test Store",
+        date="2024-12-28",
+        total_amount=150.50,
+        currency="TWD",
+        confidence_score=0.95,
+        raw_text="Test receipt",
+    )
+
+    exporter.export([receipt], export_path)
+
+    # Read the CSV file
+    with open(export_path, encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # Check header has 5 columns
+    assert len(rows[0]) == 5
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
+
+
+def test_export_receipts_content_with_file_id(tmp_path: Path) -> None:
+    """Verify that data row includes image URL when receipt has file_id."""
+    export_path = tmp_path / "receipts.csv"
+    exporter = LocalExporter()
+
+    receipt = Receipt(
+        merchant_name="Test Store",
+        date="2024-12-28",
+        total_amount=150.50,
+        currency="TWD",
+        confidence_score=0.95,
+        raw_text="Test receipt",
+        file_id="abc123def456",
+    )
+
+    exporter.export([receipt], export_path)
+
+    # Read the CSV file
+    with open(export_path, encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # Check data row has 5 columns with URL
+    assert len(rows[1]) == 5
+    assert rows[1] == [
+        "Test Store",
+        "2024-12-28",
+        "TWD",
+        "150.5",
+        "https://drive.google.com/file/d/abc123def456/view",
+    ]
+
+
+def test_export_receipts_content_without_file_id(tmp_path: Path) -> None:
+    """Verify that data row includes empty string when receipt has no file_id."""
+    export_path = tmp_path / "receipts.csv"
+    exporter = LocalExporter()
+
+    receipt = Receipt(
+        merchant_name="Test Store",
+        date="2024-12-28",
+        total_amount=150.50,
+        currency="TWD",
+        confidence_score=0.95,
+        raw_text="Test receipt",
+    )
+
+    exporter.export([receipt], export_path)
+
+    # Read the CSV file
+    with open(export_path, encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # Check data row has 5 columns with empty string for URL
+    assert len(rows[1]) == 5
+    assert rows[1] == ["Test Store", "2024-12-28", "TWD", "150.5", ""]
+
+
+def test_export_receipts_url_column_is_last(tmp_path: Path) -> None:
+    """Verify that image URL is in the 5th position (last column)."""
+    export_path = tmp_path / "receipts.csv"
+    exporter = LocalExporter()
+
+    receipt = Receipt(
+        merchant_name="Store",
+        date="2024-12-28",
+        total_amount=100.0,
+        currency="TWD",
+        confidence_score=0.95,
+        raw_text="Receipt",
+        file_id="file123",
+    )
+
+    exporter.export([receipt], export_path)
+
+    # Read the CSV file
+    with open(export_path, encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # Verify column positions
+    header = rows[0]
+    data = rows[1]
+
+    assert header[4] == "圖片連結"  # 5th column header
+    assert data[4] == "https://drive.google.com/file/d/file123/view"  # 5th column data

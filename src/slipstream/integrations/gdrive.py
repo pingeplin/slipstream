@@ -32,6 +32,20 @@ def _get_thread_service() -> Resource:
     return _thread_local.drive_service
 
 
+def generate_file_url(file_id: str | None) -> str:
+    """Generate a Google Drive file URL from a file ID.
+
+    Args:
+        file_id: The Google Drive file ID, or None
+
+    Returns:
+        The full Google Drive URL, or empty string if file_id is None
+    """
+    if file_id is None:
+        return ""
+    return f"https://drive.google.com/file/d/{file_id}/view"
+
+
 class DownloadResult(BaseModel):
     """Result from downloading a single file.
 

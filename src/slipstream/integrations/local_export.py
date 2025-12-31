@@ -9,7 +9,7 @@ from slipstream.integrations.gsheets import receipt_to_sheet_row
 from slipstream.models import Receipt
 
 # CSV header matching Google Sheets format
-CSV_HEADER = ["商家", "日期", "幣別", "總計"]
+CSV_HEADER = ["商家", "日期", "幣別", "總計", "圖片連結"]
 
 
 class LocalExporter:
