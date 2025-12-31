@@ -73,12 +73,12 @@ def test_cli_accepts_save_local_without_value_fails():
 
     # Should fail when --save-local has no value
     assert result.exit_code != 0
-    assert (
-        "Missing option" in result.stdout
-        or "--save-local" in result.stdout
-        or "Missing option" in result.stderr
-        or "--save-local" in result.stderr
-    )
+    # Combine output and remove formatting/newlines to handle potential wrapping
+    import re
+
+    full_output = result.stdout + result.stderr
+    clean_output = re.sub(r"[\s│╭╮╰╯─]", "", full_output)
+    assert "save-local" in clean_output or "Missingoption" in clean_output
 
 
 @patch("slipstream.main.run_pipeline")
