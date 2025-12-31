@@ -40,7 +40,7 @@ def mock_run_pipeline():
         yield mock
 
 
-def test_cli_accepts_save_local_option(mock_gdrive_client):
+def test_cli_accepts_save_local_option(mock_gdrive_client, mock_ocr_engine):
     """Verify process command accepts --save-local with a path."""
     # Test that the command doesn't fail with --save-local option
     result = runner.invoke(

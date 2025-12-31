@@ -47,7 +47,7 @@ def test_process_folder_required():
     assert "folder" in clean_output or "Missingoption" in clean_output
 
 
-def test_folder_id_parsing(mock_gdrive_client):
+def test_folder_id_parsing(mock_gdrive_client, mock_ocr_engine):
     """Verify that both raw IDs and URLs are correctly parsed by the CLI."""
     # Use a URL
     url = "https://drive.google.com/drive/folders/XYZ123"
@@ -57,7 +57,7 @@ def test_folder_id_parsing(mock_gdrive_client):
     assert "Processingfolder:XYZ123" in clean_stdout
 
 
-def test_folder_id_parsing_alias(mock_gdrive_client):
+def test_folder_id_parsing_alias(mock_gdrive_client, mock_ocr_engine):
     """Verify that the -f alias for --folder works."""
     url = "https://drive.google.com/drive/folders/XYZ123"
     result = runner.invoke(app, ["process", "-f", url])
