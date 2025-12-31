@@ -66,6 +66,9 @@ class LocalExporter:
                 for receipt in receipts:
                     row = receipt_to_sheet_row(receipt)
                     writer.writerow(row)
+
+                # Flush to ensure data is written before releasing lock
+                f.flush()
             finally:
                 # Release the lock
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)

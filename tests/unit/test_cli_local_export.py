@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from slipstream.integrations.gdrive import DownloadResult
 from slipstream.main import app
+from tests.utils import clean_cli_output
 
 pytestmark = pytest.mark.unit
 
@@ -39,7 +40,7 @@ def mock_run_pipeline():
         yield mock
 
 
-def test_cli_accepts_save_local_option(mock_gdrive_client):
+def test_cli_accepts_save_local_option(mock_gdrive_client, mock_ocr_engine):
     """Verify process command accepts --save-local with a path."""
     # Test that the command doesn't fail with --save-local option
     result = runner.invoke(
@@ -73,12 +74,10 @@ def test_cli_accepts_save_local_without_value_fails():
 
     # Should fail when --save-local has no value
     assert result.exit_code != 0
-    assert (
-        "Missing option" in result.stdout
-        or "--save-local" in result.stdout
-        or "Missing option" in result.stderr
-        or "--save-local" in result.stderr
-    )
+    # Combine output and remove formatting/newlines to handle potential wrapping
+    full_output = result.stdout + result.stderr
+    clean_output = clean_cli_output(full_output)
+    assert "save-local" in clean_output or "Missingoption" in clean_output
 
 
 @patch("slipstream.main.run_pipeline")

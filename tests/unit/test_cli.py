@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from slipstream.integrations.gdrive import DownloadResult
 from slipstream.main import app
+from tests.utils import clean_cli_output
 
 pytestmark = pytest.mark.unit
 
@@ -30,7 +31,9 @@ def test_process_command_exists():
     """Verify that the 'process' command exists in the CLI."""
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "process" in result.stdout.lower()
+    # Use robust cleaning to handle terminal wrapping/formatting
+    clean_stdout = clean_cli_output(result.stdout.lower())
+    assert "process" in clean_stdout
 
 
 def test_process_folder_required():
@@ -38,39 +41,39 @@ def test_process_folder_required():
     # In Typer, if an option is required and not provided, it should fail
     result = runner.invoke(app, ["process", "--folder"])
     assert result.exit_code != 0
-    assert (
-        "Missing option" in result.stdout
-        or "--folder" in result.stdout
-        or "Missing option" in result.stderr
-        or "--folder" in result.stderr
-    )
+    # Use robust cleaning to handle terminal wrapping/formatting
+    full_output = result.stdout + result.stderr
+    clean_output = clean_cli_output(full_output)
+    assert "folder" in clean_output or "Missingoption" in clean_output
 
 
-def test_folder_id_parsing(mock_gdrive_client):
+def test_folder_id_parsing(mock_gdrive_client, mock_ocr_engine):
     """Verify that both raw IDs and URLs are correctly parsed by the CLI."""
     # Use a URL
     url = "https://drive.google.com/drive/folders/XYZ123"
     result = runner.invoke(app, ["process", "--folder", url])
     assert result.exit_code == 0
-    assert "Processing folder: XYZ123" in result.stdout
+    clean_stdout = clean_cli_output(result.stdout)
+    assert "Processingfolder:XYZ123" in clean_stdout
 
 
-def test_folder_id_parsing_alias(mock_gdrive_client):
+def test_folder_id_parsing_alias(mock_gdrive_client, mock_ocr_engine):
     """Verify that the -f alias for --folder works."""
     url = "https://drive.google.com/drive/folders/XYZ123"
     result = runner.invoke(app, ["process", "-f", url])
     assert result.exit_code == 0
-    assert "Processing folder: XYZ123" in result.stdout
+    clean_stdout = clean_cli_output(result.stdout)
+    assert "Processingfolder:XYZ123" in clean_stdout
 
 
 def test_invalid_folder_url():
     """Verify the CLI reports a clear error when an invalid URL is provided."""
     result = runner.invoke(app, ["process", "--folder", "https://wrong.com/abc"])
     assert result.exit_code != 0
-    assert (
-        "Unsupported URL domain" in result.stdout
-        or "Unsupported URL domain" in result.stderr
-    )
+    # Use robust cleaning to handle terminal wrapping/formatting
+    full_output = result.stdout + result.stderr
+    clean_output = clean_cli_output(full_output)
+    assert "UnsupportedURLdomain" in clean_output
 
 
 def test_process_flow_success(mock_gdrive_client, mock_ocr_engine, tmp_path):
@@ -93,8 +96,9 @@ def test_process_flow_success(mock_gdrive_client, mock_ocr_engine, tmp_path):
     result = runner.invoke(app, ["process", "--folder", url])
 
     assert result.exit_code == 0
-    assert "Downloaded r1.jpg" in result.stdout
-    assert "Downloaded r2.png" in result.stdout
+    clean_stdout = clean_cli_output(result.stdout)
+    assert "Downloadedr1.jpg" in clean_stdout
+    assert "Downloadedr2.png" in clean_stdout
     assert mock_instance.list_files.called
     assert mock_instance.download_files.called
 
@@ -107,7 +111,8 @@ def test_process_empty_folder(mock_gdrive_client):
     result = runner.invoke(app, ["process", "--folder", "empty_folder"])
 
     assert result.exit_code == 0
-    assert "No supported files found in folder." in result.stdout
+    clean_stdout = clean_cli_output(result.stdout)
+    assert "Nosupportedfilesfoundinfolder." in clean_stdout
 
 
 def test_gdrive_api_error(mock_gdrive_client):
@@ -119,7 +124,8 @@ def test_gdrive_api_error(mock_gdrive_client):
     result = runner.invoke(app, ["process", "--folder", "error_folder"])
 
     assert result.exit_code != 0
-    assert "Error communicating with Google Drive" in result.stderr
+    clean_stderr = clean_cli_output(result.stderr)
+    assert "ErrorcommunicatingwithGoogleDrive" in clean_stderr
 
 
 def test_process_partial_download_failure(
@@ -148,5 +154,7 @@ def test_process_partial_download_failure(
     result = runner.invoke(app, ["process", "--folder", "some_folder"])
 
     assert result.exit_code == 0
-    assert "Downloaded r1.jpg" in result.stdout
-    assert "Failed to download r2.png: Download Failed" in result.stderr
+    clean_stdout = clean_cli_output(result.stdout)
+    clean_stderr = clean_cli_output(result.stderr)
+    assert "Downloadedr1.jpg" in clean_stdout
+    assert "Failedtodownloadr2.png:DownloadFailed" in clean_stderr

@@ -4,6 +4,8 @@ import os
 import pytest
 from google.api_core.exceptions import PermissionDenied
 
+from tests.utils import clean_cli_output
+
 
 def skip_if_missing_env_vars(required_vars):
     """
@@ -65,11 +67,13 @@ def verify_cli_success(result, expected_folder_id, expected_file_count):
         f"Output: {result.stdout}\nError: {result.stderr}"
     )
 
-    assert f"Processing folder: {expected_folder_id}" in result.stdout, (
+    clean_stdout = clean_cli_output(result.stdout)
+    expected_msg = clean_cli_output(f"Processing folder: {expected_folder_id}")
+    assert expected_msg in clean_stdout, (
         f"Expected folder ID {expected_folder_id} in output\nOutput: {result.stdout}"
     )
 
-    download_count = result.stdout.count("Downloaded")
+    download_count = clean_stdout.count("Downloaded")
     assert download_count == expected_file_count, (
         f"Expected {expected_file_count} files downloaded, found {download_count}\n"
         f"Output: {result.stdout}"
@@ -92,7 +96,9 @@ def verify_cli_error(result, expected_exit_code, expected_error_substring):
 
     # Check both stdout and stderr for error message
     error_output = result.stdout + result.stderr
-    assert expected_error_substring in error_output, (
+    clean_output = clean_cli_output(error_output)
+    clean_expected = clean_cli_output(expected_error_substring)
+    assert clean_expected in clean_output, (
         f"Expected error message '{expected_error_substring}' not found\n"
         f"Output: {result.stdout}\nError: {result.stderr}"
     )
