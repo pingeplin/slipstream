@@ -7,6 +7,7 @@ Slipstream is a CLI tool designed to automate the process of handling receipts. 
 - **Google Drive Integration**: Automatically lists and downloads receipt images (JPG, PNG, PDF) from a specified folder in parallel.
 - **AI-Powered Extraction**: Uses Google Vision OCR and Anthropic Claude 3.5 Haiku with structured outputs to extract merchant names, dates, amounts, and line items.
 - **Google Sheets Export**: Seamlessly appends structured receipt data to your spreadsheets in batch.
+- **Local CSV Export**: Export processed receipt data to a local CSV file for offline use.
 - **Smart URL Parsing**: Supports both Google Drive Folder IDs and full sharing URLs, as well as Google Sheets URLs.
 - **Streaming Pipeline**: Processes files as soon as they are downloaded for maximum efficiency.
 
@@ -47,7 +48,7 @@ You can run Slipstream using `uv run`.
 
 ### Processing a Folder
 
-To process all receipts in a Google Drive folder and optionally export to Google Sheets:
+To process all receipts in a Google Drive folder and export to Google Sheets or a local CSV file:
 
 ```bash
 uv run slipstream process --folder "FOLDER_URL" --sheet "SHEET_URL"
@@ -63,6 +64,12 @@ You can also control parallelism with the `--workers` option:
 
 ```bash
 uv run slipstream process -f YOUR_FOLDER_ID -w 8
+```
+
+To save the results to a local CSV file:
+
+```bash
+uv run slipstream process -f YOUR_FOLDER_ID --save-local receipts.csv
 ```
 
 ## Development
