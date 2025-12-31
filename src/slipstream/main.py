@@ -20,6 +20,7 @@ from slipstream.integrations.anthropic_extractor import (
 )
 from slipstream.integrations.gdrive import DownloadResult, GDriveClient
 from slipstream.integrations.gsheets import GSheetsClient, receipt_to_sheet_row
+from slipstream.integrations.local_export import LocalExporter
 from slipstream.integrations.ocr import OCREngine
 from slipstream.models import ProcessingResult
 from slipstream.utils.url_parser import URLParserError, parse_google_id
@@ -123,6 +124,7 @@ async def run_pipeline(
     ocr_engine: OCREngine,
     extractor: AnthropicExtractor | None = None,
     gsheets_client: GSheetsClient | None = None,
+    local_path: Path | None = None,
     on_progress: Callable[[str, str], None] | None = None,
 ) -> list[ProcessingResult]:
     """Run the streaming pipeline: process files as they download.
@@ -133,6 +135,7 @@ async def run_pipeline(
         ocr_engine: OCR engine for text extraction
         extractor: Optional Anthropic extractor for structured data extraction
         gsheets_client: Optional Google Sheets client for writing results
+        local_path: Optional path to local CSV file for writing results
         on_progress: Optional callback for progress updates (event_type, message)
 
     Returns:
@@ -163,27 +166,40 @@ async def run_pipeline(
     # Wait for all processing tasks to complete
     results = await asyncio.gather(*tasks)
 
-    # If Google Sheets client is provided, append successful extractions
-    if gsheets_client:
-        successful_receipts = []
-        for result in results:
-            if result.extraction_result:
-                receipt = result.extraction_result.receipt
-                row = receipt_to_sheet_row(receipt)
-                successful_receipts.append(row)
+    # Collect successful receipts for export
+    successful_receipts = []
+    for result in results:
+        if result.extraction_result:
+            successful_receipts.append(result.extraction_result.receipt)
 
-        if successful_receipts:
-            try:
-                # Append all rows in a single batch operation
-                gsheets_client.append_rows(successful_receipts)
-                count = len(successful_receipts)
-                message = f"Successfully appended {count} receipts to spreadsheet"
-                if on_progress:
-                    on_progress("sheets_success", message)
-            except Exception as e:
-                message = f"Failed to append receipts to spreadsheet: {e}"
-                if on_progress:
-                    on_progress("sheets_error", message)
+    # If Google Sheets client is provided, append successful extractions
+    if gsheets_client and successful_receipts:
+        rows = [receipt_to_sheet_row(receipt) for receipt in successful_receipts]
+        try:
+            # Append all rows in a single batch operation
+            gsheets_client.append_rows(rows)
+            count = len(rows)
+            message = f"Successfully appended {count} receipts to spreadsheet"
+            if on_progress:
+                on_progress("sheets_success", message)
+        except Exception as e:
+            message = f"Failed to append receipts to spreadsheet: {e}"
+            if on_progress:
+                on_progress("sheets_error", message)
+
+    # If local path is provided, export to local CSV file
+    if local_path and successful_receipts:
+        try:
+            exporter = LocalExporter()
+            exporter.export(successful_receipts, local_path)
+            count = len(successful_receipts)
+            message = f"Successfully exported {count} receipts to {local_path}"
+            if on_progress:
+                on_progress("local_export_success", message)
+        except Exception as e:
+            message = f"Failed to export receipts to local file: {e}"
+            if on_progress:
+                on_progress("local_export_error", message)
 
     return list(results)
 
@@ -201,6 +217,11 @@ def process(
         "--sheet",
         "-s",
         help="Google Sheets spreadsheet ID or URL to write results to",
+    ),
+    save_local: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--save-local",
+        help="Local CSV file path to save receipt data",
     ),
 ):
     """Process files from a Google Drive folder."""
@@ -283,6 +304,7 @@ def process(
                 ocr_engine=ocr_engine,
                 extractor=extractor,
                 gsheets_client=gsheets_client,
+                local_path=save_local,
                 on_progress=cli_progress,
             )
 
