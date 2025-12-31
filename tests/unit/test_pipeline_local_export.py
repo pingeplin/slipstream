@@ -98,7 +98,7 @@ async def test_run_pipeline_triggers_local_export(
         rows = list(reader)
 
     assert len(rows) == 2  # Header + 1 data row
-    assert rows[0] == ["商家", "日期", "幣別", "總計"]
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
     assert rows[1][0] == "Test Store"
 
 
@@ -224,3 +224,166 @@ async def test_run_pipeline_no_local_export_when_path_not_provided(
     # Verify no CSV files were created in tmp_path
     csv_files = list(tmp_path.glob("*.csv"))
     assert len(csv_files) == 0
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_sets_file_id_on_receipts(
+    tmp_path: Path,
+    mock_ocr_engine,
+    mock_extractor,
+):
+    """Verify that receipts have file_id set from DownloadResult."""
+
+    # Create download result with a specific file_id
+    def generator():
+        yield DownloadResult(
+            success=True,
+            file_id="test-file-id-123",
+            dest_path=tmp_path / "test.jpg",
+            error=None,
+        )
+
+    # Create the file so it exists
+    (tmp_path / "test.jpg").touch()
+
+    # Run pipeline
+    results = await run_pipeline(
+        download_results=generator(),
+        ocr_engine=mock_ocr_engine,
+        extractor=mock_extractor,
+    )
+
+    # Verify the receipt has file_id set
+    assert len(results) == 1
+    assert results[0].extraction_result is not None
+    receipt = results[0].extraction_result.receipt
+    assert receipt.file_id == "test-file-id-123"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_file_id_flows_to_local_export(
+    tmp_path: Path,
+    mock_ocr_engine,
+    mock_extractor,
+):
+    """Verify that file_id flows through to local CSV export with URLs."""
+    local_path = tmp_path / "receipts.csv"
+
+    # Create download result with file_id
+    def generator():
+        yield DownloadResult(
+            success=True,
+            file_id="abc123def456",
+            dest_path=tmp_path / "test.jpg",
+            error=None,
+        )
+
+    # Create the file
+    (tmp_path / "test.jpg").touch()
+
+    # Run pipeline with local export
+    await run_pipeline(
+        download_results=generator(),
+        ocr_engine=mock_ocr_engine,
+        extractor=mock_extractor,
+        local_path=local_path,
+    )
+
+    # Read the CSV file
+    with open(local_path, encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # Verify image URL is in the CSV
+    assert len(rows) == 2  # Header + 1 data row
+    assert rows[0] == ["商家", "日期", "幣別", "總計", "圖片連結"]
+    assert rows[1][4] == "https://drive.google.com/file/d/abc123def456/view"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_file_id_flows_to_gsheets(
+    tmp_path: Path,
+    mock_ocr_engine,
+    mock_extractor,
+):
+    """Verify that file_id flows through to GSheets export with URLs."""
+    # Create mock GSheets client
+    mock_gsheets = MagicMock(spec=GSheetsClient)
+
+    # Create download result with file_id
+    def generator():
+        yield DownloadResult(
+            success=True,
+            file_id="xyz789ghi012",
+            dest_path=tmp_path / "test.jpg",
+            error=None,
+        )
+
+    # Create the file
+    (tmp_path / "test.jpg").touch()
+
+    # Run pipeline with GSheets export
+    await run_pipeline(
+        download_results=generator(),
+        ocr_engine=mock_ocr_engine,
+        extractor=mock_extractor,
+        gsheets_client=mock_gsheets,
+    )
+
+    # Verify GSheets client was called with rows containing URL
+    mock_gsheets.append_rows.assert_called_once()
+    rows = mock_gsheets.append_rows.call_args[0][0]
+    assert len(rows) == 1
+    # Row should have 5 columns with URL at the end
+    assert len(rows[0]) == 5
+    assert rows[0][4] == "https://drive.google.com/file/d/xyz789ghi012/view"
+
+
+@pytest.mark.asyncio
+async def test_exported_data_contains_valid_drive_urls(
+    tmp_path: Path,
+    mock_ocr_engine,
+    mock_extractor,
+):
+    """Verify that exported data contains valid Google Drive URLs."""
+    local_path = tmp_path / "receipts.csv"
+
+    # Create multiple download results
+    def generator():
+        yield DownloadResult(
+            success=True,
+            file_id="file-001",
+            dest_path=tmp_path / "test1.jpg",
+            error=None,
+        )
+        yield DownloadResult(
+            success=True,
+            file_id="file-002",
+            dest_path=tmp_path / "test2.jpg",
+            error=None,
+        )
+
+    # Create the files
+    (tmp_path / "test1.jpg").touch()
+    (tmp_path / "test2.jpg").touch()
+
+    # Run pipeline with local export
+    await run_pipeline(
+        download_results=generator(),
+        ocr_engine=mock_ocr_engine,
+        extractor=mock_extractor,
+        local_path=local_path,
+    )
+
+    # Read the CSV file
+    with open(local_path, encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # Verify all URLs are valid Google Drive URLs
+    assert len(rows) == 3  # Header + 2 data rows
+    for i in [1, 2]:
+        url = rows[i][4]
+        assert url.startswith("https://drive.google.com/file/d/")
+        assert url.endswith("/view")
+        assert "file-00" in url

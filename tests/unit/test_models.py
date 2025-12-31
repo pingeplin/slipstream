@@ -114,6 +114,43 @@ class TestReceipt:
             )
         assert "confidence_score" in str(exc_info.value)
 
+    def test_receipt_with_file_id(self):
+        """Test that Receipt can be created with file_id."""
+        receipt = Receipt(
+            merchant_name="Test Store",
+            date="2025-12-28",
+            total_amount=150.50,
+            confidence_score=0.95,
+            raw_text="Test raw text",
+            file_id="abc123def456",
+        )
+        assert receipt.file_id == "abc123def456"
+
+    def test_receipt_without_file_id(self):
+        """Test that file_id defaults to None for backward compatibility."""
+        receipt = Receipt(
+            merchant_name="Test Store",
+            date="2025-12-28",
+            total_amount=150.50,
+            confidence_score=0.95,
+            raw_text="Test raw text",
+        )
+        assert receipt.file_id is None
+
+    def test_receipt_file_id_validation(self):
+        """Test that file_id accepts valid string values."""
+        test_ids = ["abc123", "file-id-123", "1234567890"]
+        for file_id in test_ids:
+            receipt = Receipt(
+                merchant_name="Test Store",
+                date="2025-12-28",
+                total_amount=150.50,
+                confidence_score=0.95,
+                raw_text="Test raw text",
+                file_id=file_id,
+            )
+            assert receipt.file_id == file_id
+
 
 class TestExtractionResult:
     """Test cases for ExtractionResult model."""

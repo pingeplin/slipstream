@@ -27,6 +27,7 @@ class Receipt(BaseModel):
     invoice_number: str | None = None
     confidence_score: float = Field(ge=0.0, le=1.0)
     raw_text: str
+    file_id: str | None = None
 
 
 class ExtractionResult(BaseModel):
